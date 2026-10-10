@@ -199,3 +199,19 @@ test("completed plan week lookup rejects invalid plans and dates", () => {
   assert.throws(() => getLatestCompletedPlanWeek({ startDate: "2026-02-31", weeks: [] }, "2026-10-11"), /valid startDate/);
   assert.throws(() => getLatestCompletedPlanWeek({ startDate: "2026-10-01", weeks: [] }, "2026-02-31"), /valid startDate/);
 });
+
+test("quality sessions expose a clear warm-up, main set and cool-down matching the total distance", () => {
+  const plan = generatePlan(runner({
+    level: "intermediate", weeklyKm: 40, longestRunKm: 18, daysAvailable: 4
+  }), { today: "2026-10-11" });
+  const quality = plan.weeks.flatMap(week => week.sessions)
+    .find(session => ["threshold", "intervals", "marathon_pace"].includes(session.type));
+  assert.ok(quality, "expected at least one quality session in the plan");
+  assert.ok(quality.structure);
+  assert.ok(quality.structure.warmupKm >= 0);
+  assert.ok(quality.structure.mainKm >= 0);
+  assert.ok(quality.structure.cooldownKm >= 0);
+  const parts = Math.round((quality.structure.warmupKm + quality.structure.mainKm + quality.structure.cooldownKm) * 10) / 10;
+  assert.equal(parts, quality.distanceKm);
+  assert.ok(quality.structure.mainSet.length > 10);
+});
