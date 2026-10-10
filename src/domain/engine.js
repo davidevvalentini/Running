@@ -1,4 +1,4 @@
-import { DECISIONS, validateRunner } from "./models.js";
+import { DECISIONS, isValidISODate, validateRunner } from "./models.js";
 
 const round1 = n => Math.round(n * 10) / 10;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -57,7 +57,8 @@ export function generatePlan(runner, options = {}) {
   if (!validation.ok) throw new TypeError(validation.errors.join(" "));
   if (runner.hasConcerningSymptoms) throw new Error("Plan generation paused: concerning symptoms must be addressed before training progression.");
   const today = options.today ?? new Date().toISOString().slice(0, 10);
-  const todayMs = Date.parse(today), raceMs = Date.parse(runner.raceDate);
+  if (!isValidISODate(today) || !isValidISODate(runner.raceDate)) throw new RangeError("Today and race date must be real calendar dates in YYYY-MM-DD format.");
+  const todayMs = Date.parse(`${today}T00:00:00Z`), raceMs = Date.parse(`${runner.raceDate}T00:00:00Z`);
   if (!Number.isFinite(todayMs) || !Number.isFinite(raceMs) || raceMs <= todayMs) throw new RangeError("Race date must be in the future.");
   const daysUntilRace = Math.floor((raceMs - todayMs) / DAY);
   const weeksToRace = Math.floor(daysUntilRace / 7);
@@ -70,32 +71,55 @@ export function generatePlan(runner, options = {}) {
   if (context.loadBand === "low") warnings.push("Current sustainable running load is low. This is a conservative base plan, not a promise of marathon readiness.");
   if (runner.daysAvailable < 3) warnings.push("Fewer than 3 running days per week are available; a typical marathon preparation may not be feasible with this schedule.");
   const weeks = [];
-  let previousKm = runner.weeklyKm;
+  // Progress against the most recent non-recovery week, not the artificially reduced recovery week.
+  let peakTargetKm = runner.weeklyKm;
+  let peakLongKm = Math.min(runner.longestRunKm, runner.weeklyKm);
+  let previousLongKm = peakLongKm;
   for (let i = 1; i <= totalWeeks; i++) {
     const phase = phaseForWeek(i, totalWeeks);
     const recovery = i % 4 === 0 && phase !== "taper";
-    const lastTarget = weeks[weeks.length - 1]?.targetKm ?? previousKm;
-    const baseTarget = i === 1
-      ? Math.max(previousKm, Math.min(previousKm + 1, Math.max(previousKm, runner.longestRunKm * 2)))
-      : recovery ? lastTarget * 0.78
-      : Math.min(lastTarget + Math.max(0.5, lastTarget * 0.05), Math.max(runner.weeklyKm * 1.45, runner.weeklyKm + 8));
-    let targetKm = round1(Math.max(0, baseTarget));
+    const priorPeak = peakTargetKm;
+    let targetKm;
     if (phase === "taper") {
-      const taperFactor = i === totalWeeks ? 0.55 : 0.75;
-      targetKm = round1(Math.min(targetKm, Math.max(0, lastTarget * taperFactor)));
+      // Taper percentages refer to the established build load, not to each preceding taper week.
+      targetKm = round1(priorPeak * (i === totalWeeks ? 0.55 : 0.75));
+    } else if (recovery) {
+      targetKm = round1(priorPeak * 0.8);
+    } else if (i === 1) {
+      // Never force an increase in the first week just because the race date is near.
+      targetKm = round1(runner.weeklyKm);
+    } else {
+      const nextStep = priorPeak === 0 ? 0 : Math.max(0.5, priorPeak * 0.05);
+      targetKm = round1(Math.min(priorPeak + nextStep, runner.weeklyKm * 1.45, runner.weeklyKm + 8));
     }
+    targetKm = Math.max(0, targetKm);
+
     const longCap = context.loadBand === "low" ? 0.36 : context.loadBand === "building" ? 0.38 : 0.4;
-    const longKm = round1(Math.min(runner.longestRunKm + (recovery || phase === "taper" ? 0 : 1), targetKm * longCap, targetKm));
+    let longKm;
+    if (phase === "taper") {
+      longKm = round1(Math.min(peakLongKm * (i === totalWeeks ? 0.55 : 0.75), targetKm * longCap));
+    } else if (recovery) {
+      longKm = round1(Math.min(previousLongKm * 0.8, targetKm * longCap));
+    } else if (i === 1) {
+      longKm = round1(Math.min(runner.longestRunKm, targetKm * longCap));
+    } else {
+      longKm = round1(Math.min(previousLongKm + 1, targetKm * longCap, targetKm));
+    }
+    longKm = Math.max(0, longKm);
     const sessions = splitSessions({ targetKm, longKm, days: runner.daysAvailable, context, phase, recovery, runner });
     const actualKm = round1(sessions.reduce((sum, s) => sum + s.distanceKm, 0));
     weeks.push({
       week: i, phase, recovery, targetKm: actualKm, sessions,
-      guidance: recovery ? "Recovery week: keep all sessions easy and reduce further if fatigue persists."
-        : phase === "taper" ? "Taper: reduce volume, avoid catch-up sessions, and prioritize sleep and recovery."
+      guidance: recovery ? "Recovery week: reduce volume; keep all sessions easy and shorten further if fatigue persists."
+        : phase === "taper" ? "Taper: reduce volume from the build peak, avoid catch-up sessions, and prioritize sleep and recovery."
         : phase === "specific" ? "Specific phase: quality is optional and only for runners already tolerating structured work."
         : "Keep easy running conversational; use run/walk as needed."
     });
-    previousKm = actualKm;
+    if (!recovery && phase !== "taper") {
+      peakTargetKm = Math.max(peakTargetKm, actualKm);
+      peakLongKm = Math.max(peakLongKm, longKm);
+    }
+    previousLongKm = longKm;
   }
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
