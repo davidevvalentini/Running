@@ -62,6 +62,27 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
   return sessions.slice(0, days);
 }
 
+
+export function getLatestCompletedPlanWeek(plan, today) {
+  if (!plan || typeof plan !== "object" || !Array.isArray(plan.weeks) ||
+      !isValidISODate(plan.startDate) || !isValidISODate(today)) {
+    throw new TypeError("A plan with a valid startDate and a valid review date is required.");
+  }
+  const startMs = Date.parse(`${plan.startDate}T00:00:00Z`);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+  const elapsedDays = Math.floor((todayMs - startMs) / DAY);
+  if (elapsedDays < 7) return null;
+  const weekIndex = Math.floor(elapsedDays / 7) - 1;
+  if (weekIndex < 0 || weekIndex >= plan.weeks.length) return null;
+  const dateAtOffset = offset => new Date(startMs + offset * DAY).toISOString().slice(0, 10);
+  return {
+    week: plan.weeks[weekIndex],
+    weekIndex,
+    startDate: dateAtOffset(weekIndex * 7),
+    endDate: dateAtOffset(weekIndex * 7 + 6)
+  };
+}
+
 export function generatePlan(runner, options = {}) {
   const validation = validateRunner(runner);
   if (!validation.ok) throw new TypeError(validation.errors.join(" "));
