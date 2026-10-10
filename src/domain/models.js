@@ -16,7 +16,7 @@ export function validateRunner(input) {
   if (!Number.isFinite(input.weeklyKm) || input.weeklyKm < 0 || input.weeklyKm > 300) errors.push("weeklyKm must be between 0 and 300.");
   if (!Number.isFinite(input.longestRunKm) || input.longestRunKm < 0 || input.longestRunKm > 100) errors.push("longestRunKm must be between 0 and 100.");
   if (!Number.isInteger(input.daysAvailable) || input.daysAvailable < 1 || input.daysAvailable > 7) errors.push("daysAvailable must be an integer from 1 to 7.");
-  if (typeof input.raceDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input.raceDate) || Number.isNaN(Date.parse(input.raceDate))) errors.push("raceDate must be an ISO date (YYYY-MM-DD).");
+  if (!isValidISODate(input.raceDate)) errors.push("raceDate must be a real calendar date in YYYY-MM-DD format.");
   if (input.recentPaceSecPerKm != null && (!Number.isFinite(input.recentPaceSecPerKm) || input.recentPaceSecPerKm < 150 || input.recentPaceSecPerKm > 1200)) errors.push("recentPaceSecPerKm must be between 150 and 1200.");
   if (input.hasConcerningSymptoms != null && typeof input.hasConcerningSymptoms !== "boolean") errors.push("hasConcerningSymptoms must be boolean.");
   return { ok: errors.length === 0, errors };
@@ -30,7 +30,7 @@ export function createWorkout(input) {
   if (durationSec != null && (!Number.isFinite(durationSec) || durationSec <= 0 || durationSec > 48 * 3600)) throw new RangeError("durationSec must be between 0 and 48 hours.");
   if (distanceKm == null && durationSec == null) throw new TypeError("Workout requires distance or duration.");
   const date = input.date ?? new Date().toISOString().slice(0, 10);
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) throw new TypeError("date must be YYYY-MM-DD.");
+  if (!isValidISODate(date)) throw new TypeError("date must be a real calendar date in YYYY-MM-DD format.");
   const rpe = input.rpe == null ? null : Number(input.rpe);
   if (rpe != null && (!Number.isInteger(rpe) || rpe < 1 || rpe > 10)) throw new RangeError("rpe must be an integer from 1 to 10.");
   return {
