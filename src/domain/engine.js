@@ -63,9 +63,10 @@ export function generatePlan(runner, options = {}) {
   const weeksToRace = Math.floor(daysUntilRace / 7);
   if (weeksToRace < 1) throw new RangeError("Race date must be at least one week in the future.");
   const context = classifyTrainingContext(runner);
-  const totalWeeks = Math.min(weeksToRace, 16);
+  const totalWeeks = Math.min(weeksToRace, 52);
   const warnings = [];
   if (weeksToRace < 10) warnings.push("Less than 10 weeks remain. This prototype cannot establish whether a safe marathon build is feasible; consider a qualified coach and/or a later race.");
+  if (weeksToRace > 52) warnings.push("The race is more than a year away. This plan covers the next 52 weeks only; regenerate it later rather than treating it as a fixed year-long prescription.");
   if (context.loadBand === "low") warnings.push("Current sustainable running load is low. This is a conservative base plan, not a promise of marathon readiness.");
   if (runner.daysAvailable < 3) warnings.push("Fewer than 3 running days per week are available; a typical marathon preparation may not be feasible with this schedule.");
   const weeks = [];
