@@ -4,6 +4,30 @@ const round1 = n => Math.round(n * 10) / 10;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const DAY = 86400000;
 
+const paceLabel = seconds => {
+  const value = Math.max(0, Math.round(seconds));
+  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}/km`;
+};
+
+export function estimatePaceZones(runner) {
+  if (!runner || !Number.isFinite(runner.recentRaceDistanceKm) || !Number.isFinite(runner.recentRaceTimeSec)) return null;
+  const distance = runner.recentRaceDistanceKm, raceTime = runner.recentRaceTimeSec;
+  if (![5, 10, 21.0975].includes(distance) || raceTime < 600 || raceTime > 8 * 3600) return null;
+  const marathonSeconds = raceTime * Math.pow(42.195 / distance, 1.06) / 42.195;
+  const tenKmPace = raceTime * Math.pow(10 / distance, 1.06) / 10;
+  const easy = { low: marathonSeconds + 30, high: marathonSeconds + 75 };
+  const threshold = { low: tenKmPace + 10, high: tenKmPace + 25 };
+  const intervals = { low: Math.max(150, tenKmPace - 15), high: Math.max(150, tenKmPace - 5) };
+  const band = z => `${paceLabel(z.low)} – ${paceLabel(z.high)}`;
+  return {
+    sourceDistanceKm: distance, sourceTimeSec: raceTime,
+    marathon: { low: marathonSeconds, high: marathonSeconds },
+    easy, threshold, intervals,
+    labels: { marathon: paceLabel(marathonSeconds), easy: band(easy), threshold: band(threshold), intervals: band(intervals) },
+    disclaimer: "Stime indicative da una singola prestazione, non soglie fisiologiche misurate. Il ritmo maratona previsto può essere troppo ambizioso senza una base di resistenza specifica."
+  };
+}
+
 export function classifyTrainingContext(runner) {
   const validation = validateRunner(runner);
   if (!validation.ok) throw new TypeError(validation.errors.join(" "));
@@ -30,14 +54,14 @@ const TRAINING_DAYS = {
   5: [0, 1, 3, 5, 6], 6: [0, 1, 2, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6]
 };
 
-function sessionStructure(type, km) {
+function sessionStructure(type, km, paceZones = null) {
   const total = round1(Math.max(0, km));
   if (type === "long") {
     return {
       warmupKm: 0,
       mainKm: total,
       cooldownKm: 0,
-      mainSet: "Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10). Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta."
+      mainSet: `Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km, ma prevale il test della conversazione` : ""}. Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta.`
     };
   }
   if (type === "easy" || type === "run_walk") {
@@ -49,7 +73,7 @@ function sessionStructure(type, km) {
       cooldownKm,
       mainSet: type === "run_walk"
         ? "Alterna corsa molto facile e camminata (ad esempio 3 min + 1 min); ripeti senza forzare e termina sentendoti in controllo."
-        : "Ritmo facile, RPE 3–4/10: devi riuscire a parlare per frasi complete. Nessun finale veloce."
+        : `Ritmo facile, RPE 3–4/10: devi riuscire a parlare per frasi complete${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km` : ""}. Nessun finale veloce.`
     };
   }
   const warmupKm = round1(total * 0.2);
@@ -58,19 +82,21 @@ function sessionStructure(type, km) {
   let mainSet;
   if (type === "intervals") {
     const reps = Math.max(3, Math.min(8, Math.floor(mainKm / 0.6)));
-    mainSet = `Dopo il riscaldamento: ${reps} × 400 m a sforzo sostenuto ma controllato (RPE 7/10), con 200 m di corsa molto facile tra le prove. Niente sprint; se non c'è spazio per tutte le ripetute, riduci il numero.`;
+    mainSet = `Dopo il riscaldamento: ${reps} × 400 m a sforzo sostenuto ma controllato (RPE 7/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Niente sprint; se non c'è spazio per tutte le ripetute, riduci il numero.`;
   } else if (type === "threshold") {
     const reps = mainKm >= 4.2 ? 3 : mainKm >= 2.8 ? 2 : 1;
-    mainSet = `Dopo il riscaldamento: ${reps} × 1 km a sforzo sostenuto e regolare (RPE 6/10), con 400 m di corsa facile tra le prove. Il resto della parte centrale, se presente, resta facile.`;
+    mainSet = `Dopo il riscaldamento: ${reps} × 1 km a sforzo sostenuto e regolare (RPE 6/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile tra le prove. Il resto della parte centrale, se presente, resta facile.`;
   } else {
-    mainSet = "Parte centrale a ritmo maratona solo se il ritmo obiettivo deriva da una gara recente o da una valutazione attendibile; altrimenti svolgila a ritmo facile (RPE 3–4/10). Non inseguire un ritmo ipotetico.";
+    mainSet = paceZones
+      ? `Parte centrale a ritmo maratona stimato di ${paceZones.labels.marathon} min/km solo come riferimento iniziale; se il ritmo non è sostenibile, rallenta o corri facile. Stima teorica da gara recente, da validare in allenamento.`
+      : "Parte centrale a ritmo maratona solo se il ritmo obiettivo deriva da una gara recente o da una valutazione attendibile; altrimenti svolgila a ritmo facile (RPE 3–4/10). Non inseguire un ritmo ipotetico.";
   }
   return { warmupKm, mainKm, cooldownKm, mainSet };
 }
 
-function workout(type, km, effort, note = "") {
+function workout(type, km, effort, note = "", paceZones = null) {
   const distanceKm = round1(Math.max(0, km));
-  return { type, distanceKm, effort, note, structure: sessionStructure(type, distanceKm) };
+  return { type, distanceKm, effort, note, structure: sessionStructure(type, distanceKm, paceZones) };
 }
 
 function assignSessionDays(sessions, days) {
@@ -78,7 +104,7 @@ function assignSessionDays(sessions, days) {
   return sessions.map((session, index) => ({ ...session, day: DAY_NAMES[schedule[index] ?? schedule[schedule.length - 1]] }));
 }
 
-function splitSessions({ targetKm, longKm, days, context, phase, recovery, runner }) {
+function splitSessions({ targetKm, longKm, days, context, phase, recovery, runner, paceZones }) {
   if (days === 1) {
     // Never compress the whole weekly target into one outing. With one running day,
     // cap the session at the most recent longest run and report the resulting volume.
@@ -98,7 +124,7 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
   for (let i = 0; i < count; i++) distances.push(round1(easyKm / count));
   // Keep rounding drift in the last easy session, so session distances match the weekly target.
   if (distances.length) distances[distances.length - 1] = round1(Math.max(0, easyKm - distances.slice(0, -1).reduce((a, b) => a + b, 0)));
-  const sessions = distances.map((km, i) => workout(type, km, "conversational"));
+  const sessions = distances.map((km, i) => workout(type, km, "conversational", "", paceZones));
   if (qualityAllowed && (phase === "build" || phase === "specific")) {
     const idx = sessions.length > 1 ? 1 : 0;
     const qualityType = phase === "specific" && runner.level === "advanced" ? "marathon_pace" : runner.level === "advanced" ? "intervals" : "threshold";
@@ -106,10 +132,11 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
       qualityType,
       sessions[idx].distanceKm,
       "controlled; never all-out",
-      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy."
+      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy.",
+      paceZones
     );
   }
-  sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : ""));
+  sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : "", paceZones));
   return sessions.slice(0, days);
 }
 
@@ -146,6 +173,7 @@ export function generatePlan(runner, options = {}) {
   const weeksToRace = Math.floor(daysUntilRace / 7);
   if (weeksToRace < 1) throw new RangeError("Race date must be at least one week in the future.");
   const context = classifyTrainingContext(runner);
+  const paceZones = estimatePaceZones(runner);
   const totalWeeks = Math.min(weeksToRace, 52);
   const warnings = [];
   if (weeksToRace < 10) warnings.push("Less than 10 weeks remain. This prototype cannot establish whether a safe marathon build is feasible; consider a qualified coach and/or a later race.");
@@ -189,7 +217,7 @@ export function generatePlan(runner, options = {}) {
       longKm = round1(Math.min(previousLongKm + 1, targetKm * longCap, targetKm));
     }
     longKm = Math.max(0, longKm);
-    const sessions = assignSessionDays(splitSessions({ targetKm, longKm, days: runner.daysAvailable, context, phase, recovery, runner }), runner.daysAvailable);
+    const sessions = assignSessionDays(splitSessions({ targetKm, longKm, days: runner.daysAvailable, context, phase, recovery, runner, paceZones }), runner.daysAvailable);
     const actualKm = round1(sessions.reduce((sum, s) => sum + s.distanceKm, 0));
     weeks.push({
       week: i, phase, recovery, targetKm: actualKm, sessions,
@@ -207,7 +235,7 @@ export function generatePlan(runner, options = {}) {
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     startDate: today, raceDate: runner.raceDate, level: runner.level, context, totalWeeks,
-    weeks, warnings,
+    weeks, warnings, paceZones,
     disclaimer: "Prototype training guidance, not medical advice or a validated marathon prescription. Stop for concerning symptoms and seek qualified advice. Race readiness is not guaranteed."
   };
 }
