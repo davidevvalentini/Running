@@ -258,3 +258,26 @@ test("race result fields must be paired and within supported distance range", ()
   assert.equal(validateRunner(runner({ recentRaceDistanceKm: 8, recentRaceTimeSec: 3000 })).ok, false);
   assert.equal(validateRunner(runner({ recentRaceDistanceKm: 5, recentRaceTimeSec: 999999 })).ok, false);
 });
+
+test("quality instructions fit the available main block and do not force too many reps", () => {
+  const athlete = runner({weeklyKm: 38, longestRunKm: 18, level: "intermediate"});
+  const plan = generatePlan(athlete, {today:"2026-10-11"});
+  for (const session of plan.weeks.flatMap(w => w.sessions)) {
+    if (session.type === "intervals") {
+      const reps = Number(session.structure.mainSet.match(/Parte centrale: (\\d+) × 400 m/)?.[1] ?? 0);
+      if (reps) assert.ok(reps * 0.6 <= session.structure.mainKm + 0.2);
+    }
+    if (session.type === "threshold") {
+      const reps = Number(session.structure.mainSet.match(/Parte centrale: (\\d+) × 1 km/)?.[1] ?? 0);
+      if (reps) assert.ok(reps * 1.4 - 0.4 <= session.structure.mainKm + 0.1);
+    }
+  }
+});
+
+test("specific long runs only add a controlled finish for established runners", () => {
+  const established = generatePlan(runner({weeklyKm: 45, longestRunKm: 20, level:"advanced"}), {today:"2026-10-11"});
+  const specificLongs = established.weeks.filter(w=>w.phase==="specific"&&!w.recovery).flatMap(w=>w.sessions).filter(s=>s.type==="long"&&s.distanceKm>=18);
+  if (specificLongs.length) assert.ok(specificLongs.every(s=>/Lungo progressivo controllato/.test(s.structure.mainSet)));
+  const beginner = generatePlan(runner({weeklyKm: 10, longestRunKm: 6, level:"beginner"}), {today:"2026-10-11"});
+  assert.ok(beginner.weeks.flatMap(w=>w.sessions).filter(s=>s.type==="long").every(s=>!/Lungo progressivo controllato/.test(s.structure.mainSet)));
+});
