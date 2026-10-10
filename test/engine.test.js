@@ -80,6 +80,12 @@ test("CSV preview parses rows but does not persist", () => {
   assert.equal(preview.activities[0].distanceKm, 5);
   assert.equal(preview.activities[0].source, "csv");
 });
+test("CSV import normalizes common metre distances and filters invalid outliers", () => {
+  const preview = previewActivities({ name: "runs.csv", text: "Date,Distance,Moving Time\n2026-10-01,5000,1800\n2026-10-02,8.5,2400\n2026-10-03,900000,1200", size: 90 });
+  assert.equal(preview.count, 2);
+  assert.equal(preview.activities[0].distanceKm, 5);
+  assert.equal(preview.activities[1].distanceKm, 8.5);
+});
 test("import blocks oversized and unsupported files, FIT not silently accepted", () => {
   assert.throws(() => previewActivities({ name: "runs.csv", text: "x", size: 16 * 1024 * 1024 }), /15 MB/);
   assert.throws(() => previewActivities({ name: "bad.exe", text: "x", size: 1 }), /Unsupported/);
