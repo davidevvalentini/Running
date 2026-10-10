@@ -22,7 +22,7 @@ npm test
 - Italian responsive interface for runner profile and race date.
 - Optional recent 5 km, 10 km or half-marathon result to estimate indicative pace bands (easy/long, theoretical marathon pace, threshold and intervals).
 - Deterministic plan generation with base, build, specific and taper phases where the remaining horizon allows it.
-- Day-labelled weekly sessions with per-session warm-up, main block, cool-down, effort cues and concrete instructions for easy, run/walk, long and quality workouts.
+- Day-labelled weekly sessions with per-session warm-up, main block, cool-down, effort cues and concrete instructions for easy, run/walk, long and quality workouts. Quality repetitions are capped to fit the main block; established runners may get an optional controlled finish on sufficiently long specific-phase runs.
 - Manual activity logging with distance, duration, RPE and notes.
 - GPX, TCX and CSV import preview, validation and explicit confirmation before persistence. FIT is not enabled until a maintained decoder is integrated and tested.
 - Weekly review based on recorded activity, perceived effort, missed sessions, unusual fatigue and pain/symptom flags.
