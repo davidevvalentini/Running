@@ -29,7 +29,17 @@ function workout(type, km, effort, note = "") {
 }
 
 function splitSessions({ targetKm, longKm, days, context, phase, recovery, runner }) {
-  if (days === 1) return [workout(context.loadBand === "low" ? "run_walk" : "easy", targetKm, "conversational", "One available day: keep the session easy; this schedule is not enough frequency for a typical marathon build.")];
+  if (days === 1) {
+    // Never compress the whole weekly target into one outing. With one running day,
+    // cap the session at the most recent longest run and report the resulting volume.
+    const cappedKm = Math.min(targetKm, runner.weeklyKm, runner.longestRunKm);
+    return [workout(
+      context.loadBand === "low" ? "run_walk" : "easy",
+      cappedKm,
+      "conversational",
+      "One available day: session capped at the recent longest run, not the weekly target. This schedule is not enough frequency for a typical marathon build."
+    )];
+  }
   const qualityAllowed = context.loadBand === "established" && runner.level !== "beginner" && !recovery && days >= 4 && targetKm >= 30;
   const type = context.loadBand === "low" ? "run_walk" : "easy";
   const count = Math.max(1, Math.min(days - 1, qualityAllowed ? 3 : days - 1));
@@ -70,6 +80,7 @@ export function generatePlan(runner, options = {}) {
   if (weeksToRace > 52) warnings.push("The race is more than a year away. This plan covers the next 52 weeks only; regenerate it later rather than treating it as a fixed year-long prescription.");
   if (context.loadBand === "low") warnings.push("Current sustainable running load is low. This is a conservative base plan, not a promise of marathon readiness.");
   if (runner.daysAvailable < 3) warnings.push("Fewer than 3 running days per week are available; a typical marathon preparation may not be feasible with this schedule.");
+  if (runner.daysAvailable === 1) warnings.push("With one running day available, weekly volume is capped to the recent longest run to avoid concentrating the whole weekly target into one session.");
   const weeks = [];
   // Progress against the most recent non-recovery week, not the artificially reduced recovery week.
   let peakTargetKm = runner.weeklyKm;
@@ -134,6 +145,12 @@ export function reviewTrainingWeek({ runner, plannedKm, completedWorkouts, misse
   if (!validation.ok) throw new TypeError(validation.errors.join(" "));
   if (!Number.isFinite(plannedKm) || plannedKm < 0) throw new TypeError("plannedKm must be a non-negative number.");
   if (!Array.isArray(completedWorkouts)) throw new TypeError("completedWorkouts must be an array.");
+  if (!Number.isInteger(missedSessions) || missedSessions < 0) throw new TypeError("missedSessions must be a non-negative integer.");
+  for (const item of completedWorkouts) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new TypeError("Each completed workout must be an object.");
+    if (item.distanceKm != null && (!Number.isFinite(item.distanceKm) || item.distanceKm < 0)) throw new TypeError("Workout distanceKm must be a non-negative number.");
+    if (item.rpe != null && (!Number.isInteger(item.rpe) || item.rpe < 1 || item.rpe > 10)) throw new TypeError("Workout RPE must be an integer from 1 to 10.");
+  }
   const completedKm = completedWorkouts.reduce((sum, item) => sum + (Number.isFinite(item.distanceKm) && item.distanceKm > 0 ? item.distanceKm : 0), 0);
   let decision = "maintain";
   const reasons = [];
