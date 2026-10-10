@@ -54,7 +54,8 @@ export function generatePlan(runner, options = {}) {
     } else {
       easyDistances.forEach((km, d) => sessions.push(workout(easyType, d === easyDistances.length - 1 ? round1(km + remaining) : km, "conversational")));
     }
-    if (maxDays >= 2) sessions.push(workout("long", longKm, "easy; conversational"));
+    if (maxDays === 1) sessions.push(workout(easyType, safeTarget, "conversational", "Single available day: keep the session easy; do not force a long run."));
+    else sessions.push(workout("long", longKm, "easy; conversational"));
     if (sessions.length > maxDays) throw new Error("Internal invariant failed: session count exceeds available days.");
     weeks.push({
       week: i + 1, recovery, targetKm: safeTarget, sessions,
