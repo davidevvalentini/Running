@@ -1,0 +1,14 @@
+{
+  "name": "running-marathon-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first adaptive marathon training planner",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
