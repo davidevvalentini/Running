@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyAdjustment, classifyTrainingContext, generatePlan, reviewTrainingWeek } from "../src/domain/engine.js";
+import { applyAdjustment, classifyTrainingContext, generatePlan, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
 import { createWorkout, validateRunner } from "../src/domain/models.js";
 import { createLocalStore } from "../src/storage/local-store.js";
 import { previewActivities } from "../src/import/activities.js";
@@ -25,6 +25,23 @@ test("generates reproducible structure for same profile and date", () => {
   const b = generatePlan(runner(), { today: "2026-10-11", id: "b" });
   assert.deepEqual(a.weeks, b.weeks);
   assert.ok(a.weeks.every(w => w.targetKm >= 0 && w.sessions.length <= 4));
+});
+test("phase progression ends with a taper and supports long horizons", () => {
+  assert.equal(phaseForWeek(1, 16), "base");
+  assert.equal(phaseForWeek(8, 16), "build");
+  assert.equal(phaseForWeek(13, 16), "specific");
+  assert.equal(phaseForWeek(16, 16), "taper");
+  assert.equal(generatePlan(runner(), { today: "2026-10-11" }).totalWeeks, 27);
+});
+test("weekly target matches sum of sessions and respects days available", () => {
+  for (const daysAvailable of [1, 2, 3, 4, 6]) {
+    const plan = generatePlan(runner({daysAvailable, weeklyKm: 24, longestRunKm: 14, level:"intermediate"}), {today:"2026-10-11"});
+    for (const week of plan.weeks) {
+      assert.ok(week.sessions.length <= daysAvailable);
+      const sum = Math.round(week.sessions.reduce((s, w) => s + w.distanceKm, 0) * 10) / 10;
+      assert.equal(sum, week.targetKm);
+    }
+  }
 });
 test("refuses to generate a plan with concerning symptoms", () => {
   assert.throws(() => generatePlan(runner({ hasConcerningSymptoms: true }), { today: "2026-10-11" }), /paused/);
