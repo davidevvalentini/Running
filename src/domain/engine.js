@@ -104,9 +104,9 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
     const qualityType = phase === "specific" && runner.level === "advanced" ? "marathon_pace" : runner.level === "advanced" ? "intervals" : "threshold";
     sessions[idx] = workout(
       qualityType,
-      qualityKm,
+      sessions[idx].distanceKm,
       "controlled; never all-out",
-      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy.",
+      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy."
     );
   }
   sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : ""));
