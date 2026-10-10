@@ -215,3 +215,26 @@ test("quality sessions expose a clear warm-up, main set and cool-down matching t
   assert.equal(parts, quality.distanceKm);
   assert.ok(quality.structure.mainSet.length > 10);
 });
+
+test("every planned session has a day and actionable session instructions", () => {
+  const plan = generatePlan(runner({
+    level: "intermediate", weeklyKm: 40, longestRunKm: 18, daysAvailable: 4
+  }), { today: "2026-10-11" });
+  for (const week of plan.weeks) {
+    assert.equal(new Set(week.sessions.map(s => s.day)).size, week.sessions.length);
+    for (const session of week.sessions) {
+      assert.ok(session.day);
+      assert.ok(session.structure?.mainSet?.length > 20);
+      const parts = Math.round((session.structure.warmupKm + session.structure.mainKm + session.structure.cooldownKm) * 10) / 10;
+      assert.equal(parts, session.distanceKm, `${session.day} ${session.type}: components must match total distance`);
+    }
+  }
+});
+
+test("quality session instructions only prescribe specific pace when race pace is validated", () => {
+  const plan = generatePlan(runner({
+    level: "advanced", weeklyKm: 50, longestRunKm: 22, daysAvailable: 4
+  }), { today: "2026-10-11" });
+  const marathonPace = plan.weeks.flatMap(w => w.sessions).find(s => s.type === "marathon_pace");
+  if (marathonPace) assert.match(marathonPace.structure.mainSet, /gara recente|valutazione attendibile/);
+});
