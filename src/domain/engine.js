@@ -24,8 +24,21 @@ export function phaseForWeek(week, totalWeeks) {
   return "specific";
 }
 
-function workout(type, km, effort, note = "") {
-  return { type, distanceKm: round1(Math.max(0, km)), effort, note };
+function workout(type, km, effort, note = "", structure = null) {
+  return { type, distanceKm: round1(Math.max(0, km)), effort, note, ...(structure ? { structure } : {}) };
+}
+
+function qualityStructure(type, km) {
+  const total = round1(Math.max(0, km));
+  const warmupKm = round1(total * 0.2);
+  const cooldownKm = round1(total * 0.2);
+  const mainKm = round1(Math.max(0, total - warmupKm - cooldownKm));
+  const mainSet = type === "intervals"
+    ? "Tratti brevi e controllati alternati a recupero correndo piano; niente sprint."
+    : type === "marathon_pace"
+      ? "Tratto continuo solo a un ritmo maratona già stimato in modo affidabile; altrimenti corri facile."
+      : "Tratto sostenuto ma controllato: dovresti riuscire a pronunciare brevi frasi.";
+  return { warmupKm, mainKm, cooldownKm, mainSet };
 }
 
 function splitSessions({ targetKm, longKm, days, context, phase, recovery, runner }) {
@@ -51,11 +64,14 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
   const sessions = distances.map((km, i) => workout(type, km, "conversational"));
   if (qualityAllowed && (phase === "build" || phase === "specific")) {
     const idx = sessions.length > 1 ? 1 : 0;
+    const qualityType = phase === "specific" && runner.level === "advanced" ? "marathon_pace" : runner.level === "advanced" ? "intervals" : "threshold";
+    const qualityKm = sessions[idx].distanceKm;
     sessions[idx] = workout(
-      phase === "specific" && runner.level === "advanced" ? "marathon_pace" : runner.level === "advanced" ? "intervals" : "threshold",
-      sessions[idx].distanceKm,
+      qualityType,
+      qualityKm,
       "controlled; never all-out",
-      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy."
+      "Only retain this session if healthy and already accustomed to quality training; otherwise run easy.",
+      qualityStructure(qualityType, qualityKm)
     );
   }
   sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : ""));
