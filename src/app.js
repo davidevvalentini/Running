@@ -1,4 +1,4 @@
-import { generatePlan, reviewTrainingWeek, applyAdjustment } from "./domain/engine.js";
+import { generatePlan, reviewTrainingWeek, applyAdjustment, getLatestCompletedPlanWeek } from "./domain/engine.js";
 import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
@@ -122,20 +122,28 @@ $("#review-form").addEventListener("submit", event => {
     const runner = state.runners[0];
     if (!runner) throw new Error("Prima salva il profilo e genera un piano.");
     const data = new FormData(event.currentTarget);
-    const end = Date.parse(today() + "T23:59:59Z");
-    const start = end - 6 * 86400000;
-    const recent = state.workouts.filter(w => {
-      const t = Date.parse(w.date + "T12:00:00Z");
-      return Number.isFinite(t) && t >= start && t <= end;
-    });
+    const activePlan = state.plans[0];
+    if (!activePlan) throw new Error("Genera prima un piano per poter confrontare le attività con una settimana pianificata.");
+    if (activePlan.status === "paused" || runner.hasConcerningSymptoms) {
+      throw new Error("Il piano risulta sospeso. Non viene applicato alcun adattamento automatico: serve una valutazione appropriata prima di riprendere.");
+    }
+    const completedWeek = getLatestCompletedPlanWeek(activePlan, today());
+    if (!completedWeek) {
+      throw new Error("Non c'è ancora una settimana completa del piano da valutare. La revisione sarà disponibile dopo i primi 7 giorni.");
+    }
+    const recent = state.workouts.filter(w => w.date >= completedWeek.startDate && w.date <= completedWeek.endDate);
     const review = reviewTrainingWeek({
-      runner, plannedKm: runner.weeklyKm, completedWorkouts: recent,
+      runner, plannedKm: completedWeek.week.targetKm, completedWorkouts: recent,
       missedSessions: Number(data.get("missedSessions")),
       painReported: data.get("pain") === "on",
       unusualFatigue: data.get("fatigue") === "on"
     });
     const adjustment = applyAdjustment(runner.weeklyKm, review);
-    const entry = { id: `review-${Date.now()}`, ...review, adjustment, activityCount: recent.length };
+    const entry = {
+      id: `review-${Date.now()}`, ...review, adjustment, activityCount: recent.length,
+      planId: activePlan.id, planVersion: activePlan.version ?? 1,
+      plannedWeek: completedWeek.week.week, periodStart: completedWeek.startDate, periodEnd: completedWeek.endDate
+    };
     state.adjustments = [entry, ...state.adjustments].slice(0,100);
     if (review.decision === "pause") {
       runner.hasConcerningSymptoms = true;
@@ -145,7 +153,7 @@ $("#review-form").addEventListener("submit", event => {
         state.plans[0].warnings = [...(state.plans[0].warnings ?? []), "Piano sospeso dopo la segnalazione di dolore o sintomi preoccupanti. Non riprendere automaticamente: chiedi una valutazione professionale appropriata."];
         renderPlan(state.plans[0]);
       }
-      message.textContent = "Piano sospeso. Non è stata applicata alcuna progressione; chiedi una valutazione professionale appropriata prima di riprendere.";
+      message.textContent = `Settimana ${completedWeek.week.week} (${completedWeek.startDate} – ${completedWeek.endDate}), pianificati ${completedWeek.week.targetKm} km, registrati ${review.completedKm} km. Piano sospeso. Non è stata applicata alcuna progressione; chiedi una valutazione professionale appropriata prima di riprendere.`;
     } else if (review.decision === "reduce" || review.decision === "progress") {
       const nextRunner = {...runner, weeklyKm: adjustment.weeklyKm, hasConcerningSymptoms: false};
       const nextPlan = generatePlan(nextRunner, {today:today(), id:`plan-${Date.now()}`});
@@ -154,9 +162,9 @@ $("#review-form").addEventListener("submit", event => {
       state.runners = [nextRunner];
       state.plans = [nextPlan, ...state.plans].slice(0,10);
       renderPlan(nextPlan);
-      message.textContent = `Esito: ${review.decision}. Carico settimanale aggiornato da ${runner.weeklyKm} a ${adjustment.weeklyKm} km. Il piano è stato rigenerato; le sedute saltate non sono state recuperate.`;
+      message.textContent = `Settimana ${completedWeek.week.week} (${completedWeek.startDate} – ${completedWeek.endDate}), pianificati ${completedWeek.week.targetKm} km, registrati ${review.completedKm} km. Esito: ${review.decision}. Carico settimanale aggiornato da ${runner.weeklyKm} a ${adjustment.weeklyKm} km. Il piano è stato rigenerato; le sedute saltate non sono state recuperate.`;
     } else {
-      message.textContent = `Esito: mantenere. ${review.reasons.join(" ")} Carico invariato: ${runner.weeklyKm} km/settimana.`;
+      message.textContent = `Settimana ${completedWeek.week.week} (${completedWeek.startDate} – ${completedWeek.endDate}), pianificati ${completedWeek.week.targetKm} km, registrati ${review.completedKm} km. Esito: mantenere. ${review.reasons.join(" ")} Carico invariato: ${runner.weeklyKm} km/settimana.`;
     }
     persist();
     message.hidden = false;
