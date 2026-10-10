@@ -43,12 +43,18 @@
           <label>Giorni disponibili a settimana
             <select name="daysAvailable"><option value="2">2 giorni</option><option value="3">3 giorni</option><option value="4" selected>4 giorni</option><option value="5">5 giorni</option><option value="6">6 giorni</option><option value="7">7 giorni</option></select>
           </label>
-          <label>Passo recente (facoltativo)
+          <label>Passo recente (facoltativo, non basta per stimare le zone)
             <div class="input-suffix"><input type="text" name="recentPace" inputmode="numeric" placeholder="es. 5:45"><span>min/km</span></div>
+          </label>
+          <label>Gara recente per stimare i ritmi (facoltativa)
+            <select name="recentRaceDistance"><option value="">Nessuna gara recente</option><option value="5">5 km</option><option value="10">10 km</option><option value="21.0975">Mezza maratona (21,1 km)</option></select>
+          </label>
+          <label>Tempo gara recente (mm:ss o h:mm:ss)
+            <input type="text" name="recentRaceTime" inputmode="numeric" placeholder="es. 52:30">
           </label>
         </div>
         <label class="check-row"><input type="checkbox" name="symptoms"><span>Ho dolore o sintomi insoliti che potrebbero influire sulla corsa</span></label>
-        <p class="form-note">Il passo non verrà usato per inventare un ritmo maratona. Servono dati di gara o un test adeguato per stimare ritmi specifici.</p>
+        <p class="form-note">Il passo non verrà usato per inventare un ritmo maratona. Se inserisci distanza e tempo di una gara recente (5 km, 10 km o mezza maratona), il piano mostrerà fasce di ritmo indicative. Lascia entrambi vuoti se non hai un risultato recente.</p>
         <button class="primary-button" type="submit">Genera il mio piano <span>↗</span></button>
         <div id="profile-error" class="error" role="alert" hidden></div>
       </form>
