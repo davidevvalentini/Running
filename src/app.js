@@ -114,7 +114,58 @@ $("#export-button").addEventListener("click", () => {
   const url = URL.createObjectURL(blob); const link = document.createElement("a");
   link.href=url; link.download="running-planner-export.json"; link.click(); URL.revokeObjectURL(url);
 });
-function restoreProfile() {
+
+$("#review-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const message = $("#review-message");
+  try {
+    const runner = state.runners[0];
+    if (!runner) throw new Error("Prima salva il profilo e genera un piano.");
+    const data = new FormData(event.currentTarget);
+    const end = Date.parse(today() + "T23:59:59Z");
+    const start = end - 6 * 86400000;
+    const recent = state.workouts.filter(w => {
+      const t = Date.parse(w.date + "T12:00:00Z");
+      return Number.isFinite(t) && t >= start && t <= end;
+    });
+    const review = reviewTrainingWeek({
+      runner, plannedKm: runner.weeklyKm, completedWorkouts: recent,
+      missedSessions: Number(data.get("missedSessions")),
+      painReported: data.get("pain") === "on",
+      unusualFatigue: data.get("fatigue") === "on"
+    });
+    const adjustment = applyAdjustment(runner.weeklyKm, review);
+    const entry = { id: `review-${Date.now()}`, ...review, adjustment, activityCount: recent.length };
+    state.adjustments = [entry, ...state.adjustments].slice(0,100);
+    if (review.decision === "pause") {
+      runner.hasConcerningSymptoms = true;
+      state.runners = [runner];
+      if (state.plans[0]) {
+        state.plans[0].status = "paused";
+        state.plans[0].warnings = [...(state.plans[0].warnings ?? []), "Piano sospeso dopo la segnalazione di dolore o sintomi preoccupanti. Non riprendere automaticamente: chiedi una valutazione professionale appropriata."];
+        renderPlan(state.plans[0]);
+      }
+      message.textContent = "Piano sospeso. Non è stata applicata alcuna progressione; chiedi una valutazione professionale appropriata prima di riprendere.";
+    } else if (review.decision === "reduce" || review.decision === "progress") {
+      const nextRunner = {...runner, weeklyKm: adjustment.weeklyKm, hasConcerningSymptoms: false};
+      const nextPlan = generatePlan(nextRunner, {today:today(), id:`plan-${Date.now()}`});
+      nextPlan.version = (state.plans[0]?.version ?? 0) + 1;
+      nextPlan.adjustmentReason = review.reasons.join(" ");
+      state.runners = [nextRunner];
+      state.plans = [nextPlan, ...state.plans].slice(0,10);
+      renderPlan(nextPlan);
+      message.textContent = `Esito: ${review.decision}. Carico settimanale aggiornato da ${runner.weeklyKm} a ${adjustment.weeklyKm} km. Il piano è stato rigenerato; le sedute saltate non sono state recuperate.`;
+    } else {
+      message.textContent = `Esito: mantenere. ${review.reasons.join(" ")} Carico invariato: ${runner.weeklyKm} km/settimana.`;
+    }
+    persist();
+    message.hidden = false;
+  } catch (e) {
+    message.textContent = e.message;
+    message.hidden = false;
+  }
+});
+\nfunction restoreProfile() {
   const runner = state.runners[0]; if (!runner) return;
   const form = $("#profile-form");
   for (const key of ["level","raceDate","weeklyKm","longestRunKm","daysAvailable"]) if (runner[key] != null) form.elements[key].value = runner[key];
