@@ -24,7 +24,7 @@ function parseRaceTime(value) {
   if (!value.trim()) return null;
   const parts = value.trim().split(":");
   if (parts.length !== 2 && parts.length !== 3) throw new Error("Inserisci il tempo gara come mm:ss oppure h:mm:ss.");
-  if (parts.some(part => !/^\\d+$/.test(part))) throw new Error("Il tempo gara deve essere mm:ss oppure h:mm:ss.");
+  if (parts.some(part => !/^\d+$/.test(part))) throw new Error("Il tempo gara deve essere mm:ss oppure h:mm:ss.");
   const numbers = parts.map(Number);
   if (numbers.some((n, i) => i > 0 && n > 59)) throw new Error("Minuti e secondi dopo i due punti devono essere inferiori a 60.");
   const seconds = parts.length === 2 ? numbers[0] * 60 + numbers[1] : numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
