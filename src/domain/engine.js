@@ -54,14 +54,16 @@ const TRAINING_DAYS = {
   5: [0, 1, 3, 5, 6], 6: [0, 1, 2, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6]
 };
 
-function sessionStructure(type, km, paceZones = null) {
+function sessionStructure(type, km, paceZones = null, options = {}) {
   const total = round1(Math.max(0, km));
   if (type === "long") {
     return {
       warmupKm: 0,
       mainKm: total,
       cooldownKm: 0,
-      mainSet: `Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km, ma prevale il test della conversazione` : ""}. Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta.`
+      mainSet: options.longFinish
+        ? `Lungo progressivo controllato: primi ${round1(total * 0.8)} km facili (RPE 3–4/10), ultimi ${round1(total * 0.2)} km al massimo a ritmo regolare moderato (RPE 5/10), solo se stai bene. Non è una prova a ritmo gara; se sei affaticato, mantieni tutto facile.`
+        : `Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km, ma prevale il test della conversazione` : ""}. Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta.`
     };
   }
   if (type === "easy" || type === "run_walk") {
@@ -81,11 +83,15 @@ function sessionStructure(type, km, paceZones = null) {
   const mainKm = round1(Math.max(0, total - warmupKm - cooldownKm));
   let mainSet;
   if (type === "intervals") {
-    const reps = Math.max(3, Math.min(8, Math.floor(mainKm / 0.6)));
-    mainSet = `Dopo il riscaldamento: ${reps} × 400 m a sforzo sostenuto ma controllato (RPE 7/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Niente sprint; se non c'è spazio per tutte le ripetute, riduci il numero.`;
+    const reps = Math.min(8, Math.floor((mainKm + 0.2) / 0.6));
+    mainSet = reps >= 2
+      ? `Parte centrale: ${reps} × 400 m sostenuti ma controllati (RPE 7/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Il chilometraggio residuo della parte centrale è facile; niente sprint.`
+      : "Distanza insufficiente per una serie di ripetute completa: trasforma la seduta in corsa facile, senza comprimere riscaldamento o defaticamento.";
   } else if (type === "threshold") {
-    const reps = mainKm >= 4.2 ? 3 : mainKm >= 2.8 ? 2 : 1;
-    mainSet = `Dopo il riscaldamento: ${reps} × 1 km a sforzo sostenuto e regolare (RPE 6/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile tra le prove. Il resto della parte centrale, se presente, resta facile.`;
+    const reps = Math.min(4, Math.floor((mainKm + 0.4) / 1.4));
+    mainSet = reps >= 1
+      ? `Parte centrale: ${reps} × 1 km a soglia controllata (RPE 6/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile dopo ogni prova tranne l'ultima. Il chilometraggio residuo è facile.`
+      : "La seduta è troppo breve per ripetute di soglia con recupero adeguato: svolgi la parte centrale a ritmo facile e non forzare.";
   } else {
     mainSet = paceZones
       ? `Parte centrale a ritmo maratona stimato di ${paceZones.labels.marathon} min/km solo come riferimento iniziale; se il ritmo non è sostenibile, rallenta o corri facile. Stima teorica da gara recente, da validare in allenamento.`
@@ -94,9 +100,9 @@ function sessionStructure(type, km, paceZones = null) {
   return { warmupKm, mainKm, cooldownKm, mainSet };
 }
 
-function workout(type, km, effort, note = "", paceZones = null) {
+function workout(type, km, effort, note = "", paceZones = null, structureOptions = {}) {
   const distanceKm = round1(Math.max(0, km));
-  return { type, distanceKm, effort, note, structure: sessionStructure(type, distanceKm, paceZones) };
+  return { type, distanceKm, effort, note, structure: sessionStructure(type, distanceKm, paceZones, structureOptions) };
 }
 
 function assignSessionDays(sessions, days) {
@@ -136,7 +142,8 @@ function splitSessions({ targetKm, longKm, days, context, phase, recovery, runne
       paceZones
     );
   }
-  sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : "", paceZones));
+  const longFinish = context.loadBand === "established" && phase === "specific" && !recovery && longKm >= 18;
+  sessions.push(workout("long", longKm, "easy; conversational", recovery ? "Recovery long run; shorten further if fatigued." : longFinish ? "Specific long run: only a controlled finish, never all-out." : "", paceZones, { longFinish }));
   return sessions.slice(0, days);
 }
 
