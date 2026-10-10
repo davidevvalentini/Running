@@ -165,7 +165,7 @@ $("#review-form").addEventListener("submit", event => {
     message.hidden = false;
   }
 });
-\nfunction restoreProfile() {
+function restoreProfile() {
   const runner = state.runners[0]; if (!runner) return;
   const form = $("#profile-form");
   for (const key of ["level","raceDate","weeklyKm","longestRunKm","daysAvailable"]) if (runner[key] != null) form.elements[key].value = runner[key];
