@@ -20,6 +20,17 @@ function paceToSeconds(value) {
   if (seconds < 150 || seconds > 1200) throw new Error("Il passo inserito è fuori dall'intervallo accettato.");
   return seconds;
 }
+function parseRaceTime(value) {
+  if (!value.trim()) return null;
+  const parts = value.trim().split(":");
+  if (parts.length !== 2 && parts.length !== 3) throw new Error("Inserisci il tempo gara come mm:ss oppure h:mm:ss.");
+  if (parts.some(part => !/^\\d+$/.test(part))) throw new Error("Il tempo gara deve essere mm:ss oppure h:mm:ss.");
+  const numbers = parts.map(Number);
+  if (numbers.some((n, i) => i > 0 && n > 59)) throw new Error("Minuti e secondi dopo i due punti devono essere inferiori a 60.");
+  const seconds = parts.length === 2 ? numbers[0] * 60 + numbers[1] : numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
+  if (seconds < 600 || seconds > 8 * 3600) throw new Error("Il tempo gara è fuori dall'intervallo accettato.");
+  return seconds;
+}
 function readRunner(form) {
   const data = new FormData(form);
   return {
@@ -30,8 +41,14 @@ function readRunner(form) {
     longestRunKm: Number(data.get("longestRunKm")),
     daysAvailable: Number(data.get("daysAvailable")),
     recentPaceSecPerKm: paceToSeconds(String(data.get("recentPace") ?? "")),
+    recentRaceDistanceKm: data.get("recentRaceDistance") ? Number(data.get("recentRaceDistance")) : null,
+    recentRaceTimeSec: parseRaceTime(String(data.get("recentRaceTime") ?? "")),
     hasConcerningSymptoms: data.get("symptoms") === "on"
   };
+}
+function formatRaceTime(seconds) {
+  const total = Math.round(seconds), h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  return h ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}` : `${m}:${String(s).padStart(2,"0")}`;
 }
 function renderPlan(plan) {
   $("#plan-section").hidden = false;
@@ -41,6 +58,13 @@ function renderPlan(plan) {
     ["Carico attuale", labels[plan.context.loadBand] ?? plan.context.loadBand]
   ].map(([title,value]) => `<div class="summary-card"><span>${esc(title)}</span><strong>${esc(value)}</strong></div>`).join("");
   $("#plan-warnings").innerHTML = plan.warnings.map(w => `<div class="warning">⚠ ${esc(w)}</div>`).join("");
+  $("#pace-zones")?.remove();
+  if (plan.paceZones) {
+    const zones = document.createElement("div");
+    zones.id = "pace-zones"; zones.className = "pace-zones";
+    zones.innerHTML = `<h3>Zone di ritmo indicative</h3><p>Stimate dalla gara recente inserita: ${esc(plan.paceZones.sourceDistanceKm)} km in ${esc(formatRaceTime(plan.paceZones.sourceTimeSec))}. Sono riferimenti iniziali, non soglie misurate; regola sempre in base a fatica, condizioni e recupero.</p><div class="pace-grid">${[["Facile / lungo",plan.paceZones.labels.easy],["Ritmo maratona teorico",plan.paceZones.labels.marathon],["Soglia controllata",plan.paceZones.labels.threshold],["Intervalli",plan.paceZones.labels.intervals]].map(([name,pace])=>`<div><span>${esc(name)}</span><strong>${esc(pace)}</strong></div>`).join("")}</div><small>${esc(plan.paceZones.disclaimer)}</small>`;
+    $("#plan-summary").after(zones);
+  }
   $("#plan-weeks").innerHTML = plan.weeks.map(week => `<details class="week-card" ${week.week === 1 ? "open" : ""}>
     <summary><span class="week-num">W${String(week.week).padStart(2,"0")}</span><span><span class="week-title">${esc(week.recovery ? "Settimana di recupero" : "Settimana " + week.week)}</span><span class="week-sub"> · ${esc(week.guidance)}</span></span><span class="phase">${esc(labels[week.phase] ?? week.phase)}</span><span class="week-km">${week.targetKm.toLocaleString("it-IT")} km</span></summary>
     <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
