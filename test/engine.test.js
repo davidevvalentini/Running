@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyAdjustment, classifyTrainingContext, generatePlan, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
+import { applyAdjustment, classifyTrainingContext, generatePlan, getLatestCompletedPlanWeek, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
 import { createWorkout, isValidISODate, validateRunner } from "../src/domain/models.js";
 import { createLocalStore } from "../src/storage/local-store.js";
 import { previewActivities } from "../src/import/activities.js";
@@ -170,4 +170,32 @@ test("stress matrix preserves plan invariants across contrasting profiles", () =
       assert.equal(week.targetKm, total);
     }
   }
+});
+
+
+test("weekly review selects the latest completed plan week, not an in-progress week", () => {
+  const plan = {
+    startDate: "2026-10-01",
+    weeks: [
+      { week: 1, targetKm: 20 },
+      { week: 2, targetKm: 22 },
+      { week: 3, targetKm: 24 }
+    ]
+  };
+  assert.equal(getLatestCompletedPlanWeek(plan, "2026-10-07"), null);
+  assert.deepEqual(getLatestCompletedPlanWeek(plan, "2026-10-08"), {
+    week: { week: 1, targetKm: 20 }, weekIndex: 0,
+    startDate: "2026-10-01", endDate: "2026-10-07"
+  });
+  assert.deepEqual(getLatestCompletedPlanWeek(plan, "2026-10-15"), {
+    week: { week: 2, targetKm: 22 }, weekIndex: 1,
+    startDate: "2026-10-08", endDate: "2026-10-14"
+  });
+  assert.equal(getLatestCompletedPlanWeek(plan, "2026-10-29"), null);
+});
+
+test("completed plan week lookup rejects invalid plans and dates", () => {
+  assert.throws(() => getLatestCompletedPlanWeek(null, "2026-10-11"), /valid startDate/);
+  assert.throws(() => getLatestCompletedPlanWeek({ startDate: "2026-02-31", weeks: [] }, "2026-10-11"), /valid startDate/);
+  assert.throws(() => getLatestCompletedPlanWeek({ startDate: "2026-10-01", weeks: [] }, "2026-02-31"), /valid startDate/);
 });
