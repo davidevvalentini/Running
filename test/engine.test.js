@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyAdjustment, classifyTrainingContext, generatePlan, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
-import { createWorkout, validateRunner } from "../src/domain/models.js";
+import { createWorkout, isValidISODate, validateRunner } from "../src/domain/models.js";
 import { createLocalStore } from "../src/storage/local-store.js";
 import { previewActivities } from "../src/import/activities.js";
 
@@ -90,4 +90,36 @@ test("import blocks oversized and unsupported files, FIT not silently accepted",
   assert.throws(() => previewActivities({ name: "runs.csv", text: "x", size: 16 * 1024 * 1024 }), /15 MB/);
   assert.throws(() => previewActivities({ name: "bad.exe", text: "x", size: 1 }), /Unsupported/);
   assert.throws(() => previewActivities({ name: "run.fit", text: "binary placeholder", size: 10 }), /FIT decoder/);
+});
+
+test("rejects impossible calendar dates instead of accepting Date.parse normalization", () => {
+  assert.equal(isValidISODate("2026-02-28"), true);
+  assert.equal(isValidISODate("2026-02-31"), false);
+  assert.equal(validateRunner(runner({ raceDate: "2027-02-29" })).ok, false);
+  assert.throws(() => createWorkout({ distanceKm: 5, date: "2026-02-31" }), /real calendar date/);
+  assert.throws(() => generatePlan(runner(), { today: "2026-02-31" }), /real calendar dates/);
+});
+test("first week never auto-increases load and recovery/taper are anchored to build load", () => {
+  const plan = generatePlan(runner({weeklyKm: 30, longestRunKm: 16, level: "intermediate"}), {today:"2026-10-11"});
+  assert.equal(plan.weeks[0].targetKm, 30);
+  const recovery = plan.weeks.find(w => w.recovery);
+  assert.ok(recovery);
+  const before = plan.weeks[recovery.week - 2];
+  assert.ok(recovery.targetKm <= before.targetKm);
+  const peak = Math.max(...plan.weeks.filter(w => w.phase !== "taper").map(w => w.targetKm));
+  const taper = plan.weeks.filter(w => w.phase === "taper");
+  assert.equal(taper.length, 2);
+  assert.ok(taper[0].targetKm <= peak * 0.75 + 0.1);
+  assert.ok(taper[1].targetKm <= peak * 0.55 + 0.1);
+});
+test("long run progression does not jump by more than one kilometre in a normal week", () => {
+  const plan = generatePlan(runner({weeklyKm: 28, longestRunKm: 14, level:"intermediate"}), {today:"2026-10-11"});
+  for (let i = 1; i < plan.weeks.length; i++) {
+    const prev = plan.weeks[i-1], curr = plan.weeks[i];
+    if (!curr.recovery && curr.phase !== "taper" && prev.phase !== "taper") {
+      const prevLong = prev.sessions.find(s => s.type === "long")?.distanceKm ?? 0;
+      const currLong = curr.sessions.find(s => s.type === "long")?.distanceKm ?? 0;
+      assert.ok(currLong <= prevLong + 1.1, `week ${curr.week}: ${prevLong} -> ${currLong}`);
+    }
+  }
 });
