@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Local-first adaptive marathon training planner",
   "scripts": {
-    "test": "node --test",
+    "test": "node --check src/app.js && node --check src/domain/engine.js && node --check src/import/activities.js && node --test",
     "test:watch": "node --test --watch"
   },
   "engines": {
