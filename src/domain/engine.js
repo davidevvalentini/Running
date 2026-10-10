@@ -1,4 +1,4 @@
-import { DECISIONS, LEVELS, validateRunner } from "./models.js";
+import { DECISIONS, validateRunner } from "./models.js";
 
 const round1 = n => Math.round(n * 10) / 10;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -6,11 +6,10 @@ const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 export function classifyTrainingContext(runner) {
   const validation = validateRunner(runner);
   if (!validation.ok) throw new TypeError(validation.errors.join(" "));
-  // Ability and sustainable load remain separate: a returning advanced runner may need a beginner-like base.
+  // Ability and sustainable load are separate: an experienced runner returning after a break may need a low-load base.
   const loadBand = runner.weeklyKm < 15 || runner.longestRunKm < 8 ? "low"
     : runner.weeklyKm < 35 || runner.longestRunKm < 18 ? "building" : "established";
-  const phase = loadBand === "low" ? "base" : "base";
-  return { ability: runner.level, loadBand, phase };
+  return { ability: runner.level, loadBand, phase: "base" };
 }
 
 function workout(type, km, effort, note = "") {
@@ -27,13 +26,12 @@ export function generatePlan(runner, options = {}) {
   const context = classifyTrainingContext(runner);
   const buildWeeks = Math.min(weeksToRace, 16);
   const maxDays = runner.daysAvailable;
-  const initial = Math.max(0, runner.weeklyKm);
+  const initial = runner.weeklyKm;
   const weeks = [];
   let previousKm = initial;
 
   for (let i = 0; i < buildWeeks; i++) {
     const recovery = (i + 1) % 4 === 0;
-    // Conservative, capped progression; a recovery week reduces load. No universal percentage rule.
     const target = i === 0 ? Math.max(initial, Math.min(12, Math.max(5, runner.longestRunKm * 2.2)))
       : recovery ? previousKm * 0.78
       : Math.min(previousKm + Math.max(1, previousKm * 0.06), Math.max(initial * 1.5, 10));
@@ -41,16 +39,25 @@ export function generatePlan(runner, options = {}) {
     const longShare = context.loadBand === "low" ? 0.32 : context.loadBand === "building" ? 0.34 : 0.36;
     const longKm = round1(Math.min(runner.longestRunKm + (recovery ? 0 : 1), safeTarget * longShare));
     const sessions = [];
-    if (maxDays >= 1) sessions.push(workout(context.loadBand === "low" ? "run_walk" : "easy", round1(safeTarget * 0.25), "conversational"));
-    if (maxDays >= 2) sessions.push(workout("easy", round1(safeTarget * 0.25), "conversational"));
-    if (maxDays >= 3) sessions.push(workout("easy", round1(Math.max(0, safeTarget - longKm - sessions.reduce((s, x) => s + x.distanceKm, 0))), "conversational"));
-    if (maxDays >= 2) sessions.push(workout("long", longKm, "easy; conversational"));
-    // Quality is allowed only with an established current load, not just an advanced label.
-    if (context.loadBand === "established" && runner.level !== "beginner" && !recovery && maxDays >= 4 && safeTarget >= 25) {
-      sessions.push(workout(runner.level === "advanced" ? "intervals" : "threshold", round1(Math.min(6, safeTarget * 0.15)), "controlled; never all-out", "Quality session only if healthy and accustomed to structured training."));
+    const qualityAllowed = context.loadBand === "established" && runner.level !== "beginner" && !recovery && maxDays >= 4 && safeTarget >= 25;
+    const easyType = context.loadBand === "low" ? "run_walk" : "easy";
+    // Reserve one day for the long run; quality replaces an easy session rather than adding load or exceeding available days.
+    const easyDays = Math.max(0, Math.min(maxDays - 1, qualityAllowed ? 2 : maxDays - 1));
+    const easyDistances = [];
+    for (let d = 0; d < easyDays; d++) easyDistances.push(round1(safeTarget * (d < 2 ? 0.25 : 0.2)));
+    const easyTotal = easyDistances.reduce((sum, km) => sum + km, 0);
+    const remaining = round1(Math.max(0, safeTarget - longKm - easyTotal));
+    if (qualityAllowed) {
+      sessions.push(workout(easyType, easyDistances[0] ?? 0, "conversational"));
+      sessions.push(workout(runner.level === "advanced" ? "intervals" : "threshold", Math.min(6, round1(safeTarget * 0.15)), "controlled; never all-out", "Only if healthy and accustomed to structured training."));
+      for (let d = 1; d < easyDistances.length; d++) sessions.push(workout("easy", easyDistances[d], "conversational"));
+    } else {
+      easyDistances.forEach((km, d) => sessions.push(workout(easyType, d === easyDistances.length - 1 ? round1(km + remaining) : km, "conversational")));
     }
+    if (maxDays >= 2) sessions.push(workout("long", longKm, "easy; conversational"));
+    if (sessions.length > maxDays) throw new Error("Internal invariant failed: session count exceeds available days.");
     weeks.push({
-      week: i + 1, recovery, targetKm: safeTarget, sessions: sessions.slice(0, maxDays),
+      week: i + 1, recovery, targetKm: safeTarget, sessions,
       guidance: recovery ? "Recovery week: keep all running easy." : "Keep easy sessions conversational; use run/walk as needed."
     });
     previousKm = safeTarget;
@@ -58,7 +65,7 @@ export function generatePlan(runner, options = {}) {
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     raceDate: runner.raceDate, level: runner.level, context, weeks,
-    disclaimer: "Training guidance only; not medical advice. Stop for concerning symptoms and seek qualified advice."
+    disclaimer: "Early prototype: this is a conservative base scaffold, not yet a complete marathon-specific plan. It is not medical advice. Stop for concerning symptoms and seek qualified advice."
   };
 }
 
@@ -82,7 +89,7 @@ export function reviewTrainingWeek({ runner, plannedKm, completedWorkouts, misse
   } else if (plannedKm > 0 && completedKm < plannedKm * 0.7) {
     decision = "reduce";
     reasons.push("Completed volume was substantially below plan; repeat or reduce the load rather than progressing.");
-  } else if (plannedKm > 0 && completedKm >= plannedKm * 0.85 && completedWorkouts.every(w => w.rpe == null || w.rpe <= 6)) {
+  } else if (plannedKm > 0 && completedKm >= plannedKm * 0.85 && completedWorkouts.length > 0 && completedWorkouts.every(w => w.rpe == null || w.rpe <= 6)) {
     decision = "progress";
     reasons.push("Planned volume was largely completed at controlled perceived effort; consider only the next small planned step.");
   } else {
