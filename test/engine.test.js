@@ -123,3 +123,51 @@ test("long run progression does not jump by more than one kilometre in a normal 
     }
   }
 });
+
+
+test("one available day never compresses the whole weekly target into one run", () => {
+  const plan = generatePlan(runner({
+    weeklyKm: 35, longestRunKm: 12, daysAvailable: 1, level: "intermediate"
+  }), { today: "2026-10-11" });
+  assert.ok(plan.warnings.some(w => /one running day/i.test(w)));
+  for (const week of plan.weeks) {
+    assert.ok(week.sessions.length <= 1);
+    assert.ok(week.targetKm <= 12, `week ${week.week} unexpectedly prescribes ${week.targetKm} km in one outing`);
+    assert.equal(week.targetKm, Math.round(week.sessions.reduce((sum, s) => sum + s.distanceKm, 0) * 10) / 10);
+  }
+});
+
+test("review rejects malformed missed-session counts, workouts and RPE values", () => {
+  assert.throws(() => reviewTrainingWeek({
+    runner: runner(), plannedKm: 20, completedWorkouts: [], missedSessions: -1
+  }), /missedSessions/);
+  assert.throws(() => reviewTrainingWeek({
+    runner: runner(), plannedKm: 20, completedWorkouts: [null]
+  }), /must be an object/);
+  assert.throws(() => reviewTrainingWeek({
+    runner: runner(), plannedKm: 20, completedWorkouts: [{ distanceKm: 5, rpe: 11 }]
+  }), /RPE/);
+});
+
+test("stress matrix preserves plan invariants across contrasting profiles", () => {
+  const profiles = [
+    runner({ weeklyKm: 0, longestRunKm: 0, daysAvailable: 3 }),
+    runner({ weeklyKm: 10, longestRunKm: 6, daysAvailable: 2 }),
+    runner({ level: "intermediate", weeklyKm: 25, longestRunKm: 12, daysAvailable: 4 }),
+    runner({ level: "advanced", weeklyKm: 55, longestRunKm: 26, daysAvailable: 6 }),
+    runner({ level: "advanced", weeklyKm: 300, longestRunKm: 100, daysAvailable: 7 })
+  ];
+  for (const profile of profiles) {
+    const plan = generatePlan(profile, { today: "2026-10-11" });
+    assert.ok(plan.weeks.length > 0);
+    for (const week of plan.weeks) {
+      assert.ok(week.targetKm >= 0 && Number.isFinite(week.targetKm));
+      assert.ok(week.sessions.length <= profile.daysAvailable);
+      for (const session of week.sessions) {
+        assert.ok(session.distanceKm >= 0 && Number.isFinite(session.distanceKm));
+      }
+      const total = Math.round(week.sessions.reduce((sum, s) => sum + s.distanceKm, 0) * 10) / 10;
+      assert.equal(week.targetKm, total);
+    }
+  }
+});
