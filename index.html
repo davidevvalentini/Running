@@ -79,6 +79,21 @@
       <p class="form-note">Prima mostriamo un'anteprima da controllare. I file FIT sono riconosciuti, ma il decoder non è ancora installato.</p>
       <div id="import-preview" hidden></div>
     </section>
+    <section class="panel" id="review-panel">
+      <div class="section-heading"><div><div class="eyebrow">ADATTAMENTO RESPONSABILE</div><h2>Rivedi l’ultima settimana</h2></div><span class="step">04</span></div>
+      <p class="form-note">Confrontiamo le attività registrate negli ultimi 7 giorni con il carico abituale. La valutazione è indicativa: registra tutte le attività prima di procedere.</p>
+      <form id="review-form">
+        <div class="form-grid">
+          <label>Allenamenti saltati (non da recuperare)
+            <select name="missedSessions"><option value="0">Nessuno</option><option value="1">1 seduta</option><option value="2">2 sedute</option><option value="3">3 o più sedute</option></select>
+          </label>
+          <label class="check-row"><input type="checkbox" name="fatigue"><span>Fatica insolita o recupero insufficiente</span></label>
+          <label class="check-row"><input type="checkbox" name="pain"><span>Dolore o sintomi preoccupanti</span></label>
+        </div>
+        <button class="secondary-button" type="submit">Valuta e adatta il carico</button>
+        <div id="review-message" class="message" role="status" hidden></div>
+      </form>
+    </section>
     <section class="panel history-panel">
       <div class="section-heading"><div><div class="eyebrow">CONTINUITÀ</div><h2>Ultimi allenamenti</h2></div><button id="export-button" class="text-button" type="button">Esporta dati ↓</button></div>
       <div id="workout-history" class="history-list"></div>
