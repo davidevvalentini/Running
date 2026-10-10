@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyAdjustment, classifyTrainingContext, generatePlan, getLatestCompletedPlanWeek, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
+import { applyAdjustment, classifyTrainingContext, estimatePaceZones, generatePlan, getLatestCompletedPlanWeek, phaseForWeek, reviewTrainingWeek } from "../src/domain/engine.js";
 import { createWorkout, isValidISODate, validateRunner } from "../src/domain/models.js";
 import { createLocalStore } from "../src/storage/local-store.js";
 import { previewActivities } from "../src/import/activities.js";
@@ -237,4 +237,24 @@ test("quality session instructions only prescribe specific pace when race pace i
   }), { today: "2026-10-11" });
   const marathonPace = plan.weeks.flatMap(w => w.sessions).find(s => s.type === "marathon_pace");
   if (marathonPace) assert.match(marathonPace.structure.mainSet, /gara recente|valutazione attendibile/);
+});
+
+test("race-based pace estimates are optional, reproducible and attached to plans", () => {
+  assert.equal(estimatePaceZones(runner()), null);
+  const athlete = runner({ recentRaceDistanceKm: 10, recentRaceTimeSec: 3000 });
+  const zones = estimatePaceZones(athlete);
+  assert.ok(zones.labels.easy.includes("/km"));
+  assert.ok(zones.labels.threshold.includes("/km"));
+  assert.ok(zones.labels.intervals.includes("/km"));
+  const plan = generatePlan(athlete, { today: "2026-10-11" });
+  assert.deepEqual(plan.paceZones, zones);
+  const quality = plan.weeks.flatMap(w => w.sessions).find(s => s.type === "threshold");
+  if (quality) assert.match(quality.structure.mainSet, /riferimento indicativo/);
+});
+
+test("race result fields must be paired and within supported distance range", () => {
+  assert.equal(validateRunner(runner({ recentRaceDistanceKm: 10, recentRaceTimeSec: 3000 })).ok, true);
+  assert.equal(validateRunner(runner({ recentRaceDistanceKm: 10 })).ok, false);
+  assert.equal(validateRunner(runner({ recentRaceDistanceKm: 8, recentRaceTimeSec: 3000 })).ok, false);
+  assert.equal(validateRunner(runner({ recentRaceDistanceKm: 5, recentRaceTimeSec: 999999 })).ok, false);
 });
