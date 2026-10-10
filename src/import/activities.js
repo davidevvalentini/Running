@@ -15,6 +15,8 @@ function workoutRow(row, source) {
   const distanceKm = safeNumber(row.distanceKm);
   const durationSec = safeNumber(row.durationSec);
   if ((!distanceKm || distanceKm <= 0) && (!durationSec || durationSec <= 0)) return null;
+  if (distanceKm != null && (distanceKm <= 0 || distanceKm > 300)) return null;
+  if (durationSec != null && (durationSec <= 0 || durationSec > 48 * 3600)) return null;
   return {
     date: dateOnly(row.date) ?? new Date().toISOString().slice(0, 10),
     distanceKm: distanceKm > 0 ? distanceKm : null,
@@ -42,10 +44,13 @@ function parseCsv(text) {
   const pick = (row, aliases) => { const idx = headers.findIndex(h => aliases.includes(h)); return idx < 0 ? null : row[idx]; };
   return lines.slice(1).map(line => {
     const row = parseLine(line);
-    const km = safeNumber(pick(row, ["distancekm", "distance"]));
+    const explicitKm = safeNumber(pick(row, ["distancekm"]));
     const metres = safeNumber(pick(row, ["distancem", "distanceinmeters"]));
+    const genericDistance = safeNumber(pick(row, ["distance"]));
+    // Generic "Distance" columns vary by exporter: values above 300 are treated as metres, otherwise kilometres.
+    const km = explicitKm ?? (metres != null ? metres / 1000 : genericDistance == null ? null : genericDistance > 300 ? genericDistance / 1000 : genericDistance);
     const duration = safeNumber(pick(row, ["durationsec", "durationseconds", "elapsedtime", "movingtime"]));
-    return workoutRow({ date: pick(row, ["date", "startdate", "starttime"]), distanceKm: km ?? (metres == null ? null : metres / 1000), durationSec: duration, externalId: pick(row, ["id", "activityid"]) }, "csv");
+    return workoutRow({ date: pick(row, ["date", "startdate", "starttime"]), distanceKm: km, durationSec: duration, externalId: pick(row, ["id", "activityid"]) }, "csv");
   }).filter(Boolean);
 }
 function xmlDocument(text) {
