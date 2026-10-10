@@ -18,6 +18,11 @@ export function validateRunner(input) {
   if (!Number.isInteger(input.daysAvailable) || input.daysAvailable < 1 || input.daysAvailable > 7) errors.push("daysAvailable must be an integer from 1 to 7.");
   if (!isValidISODate(input.raceDate)) errors.push("raceDate must be a real calendar date in YYYY-MM-DD format.");
   if (input.recentPaceSecPerKm != null && (!Number.isFinite(input.recentPaceSecPerKm) || input.recentPaceSecPerKm < 150 || input.recentPaceSecPerKm > 1200)) errors.push("recentPaceSecPerKm must be between 150 and 1200.");
+  const hasRaceDistance = input.recentRaceDistanceKm != null && input.recentRaceDistanceKm !== "";
+  const hasRaceTime = input.recentRaceTimeSec != null && input.recentRaceTimeSec !== "";
+  if (hasRaceDistance !== hasRaceTime) errors.push("recentRaceDistanceKm and recentRaceTimeSec must be supplied together.");
+  if (hasRaceDistance && (!Number.isFinite(input.recentRaceDistanceKm) || ![5, 10, 21.0975].includes(input.recentRaceDistanceKm))) errors.push("recentRaceDistanceKm must be 5, 10 or 21.0975 km.");
+  if (hasRaceTime && (!Number.isFinite(input.recentRaceTimeSec) || input.recentRaceTimeSec < 600 || input.recentRaceTimeSec > 8 * 3600)) errors.push("recentRaceTimeSec must be between 10 minutes and 8 hours.");
   if (input.hasConcerningSymptoms != null && typeof input.hasConcerningSymptoms !== "boolean") errors.push("hasConcerningSymptoms must be boolean.");
   return { ok: errors.length === 0, errors };
 }
