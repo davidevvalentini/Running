@@ -3,141 +3,68 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101b2b">
-  <meta name="description" content="Pianifica e adatta la preparazione alla maratona.">
-  <title>Running — Marathon Planner</title>
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="Piano di allenamento per la maratona, seduta del giorno e adattamenti.">
+  <title>Running — Piano maratona</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#" aria-label="Running, home"><span class="brand-mark">R</span><span>running<span class="brand-muted">/planner</span></span></a>
-    <span class="local-status"><i></i> Dati salvati su questo dispositivo</span>
+  <header class="top" id="top">
+    <a class="brand" href="#oggi"><span class="mark">R</span><span>running<span class="muted">/maratona</span></span></a>
+    <span class="chip" id="countdown" hidden></span>
   </header>
-  <main class="layout">
-    <section class="hero">
-      <div class="eyebrow">IL TUO PERCORSO, UN PASSO ALLA VOLTA</div>
-      <h1>La maratona si prepara.<br><span>Non si improvvisa.</span></h1>
-      <p>Un piano costruito sul tuo carico attuale, sui giorni che hai a disposizione e sulla data della gara. Il programma si adatta ai tuoi allenamenti, senza rincorrere quelli saltati.</p>
-      <div class="hero-meta"><span>01 / Profilo</span><span>02 / Piano</span><span>03 / Revisione</span></div>
-    </section>
-    <nav class="app-tabs" aria-label="Sezioni dell'app">
-      <button type="button" class="app-tab is-active" data-tab="plan-section" aria-selected="true">Programma</button>
-      <button type="button" class="app-tab" data-tab="daily-session-section" aria-selected="false">Seduta</button>
-      <button type="button" class="app-tab" data-tab="review-panel" aria-selected="false">Revisione</button>
-    </nav>
-    <section class="panel profile-panel">
-      <div class="section-heading"><div><div class="eyebrow">PUNTO DI PARTENZA</div><h2>Il tuo profilo runner</h2></div><span class="step">01</span></div>
-      <form id="profile-form">
-        <div class="form-grid">
-          <label>Livello attuale
-            <select name="level" required>
-              <option value="beginner">Principiante / prima maratona</option>
-              <option value="intermediate">Intermedio</option>
-              <option value="advanced">Evoluto</option>
-            </select>
-          </label>
-          <label>Data della maratona
-            <input type="date" name="raceDate" required>
-          </label>
-          <label>Tempo obiettivo maratona (facoltativo)
-            <input type="text" name="goalMarathonTime" inputmode="numeric" placeholder="es. 4:00:00">
-          </label>
-          <label>Km corsi in una settimana tipica
-            <div class="input-suffix"><input type="number" name="weeklyKm" min="0" max="300" step="0.5" value="10" required><span>km</span></div>
-          </label>
-          <label>Lungo più recente
-            <div class="input-suffix"><input type="number" name="longestRunKm" min="0" max="100" step="0.5" value="6" required><span>km</span></div>
-          </label>
-          <label>Giorni disponibili a settimana
-            <select name="daysAvailable"><option value="2">2 giorni</option><option value="3">3 giorni</option><option value="4" selected>4 giorni</option><option value="5">5 giorni</option><option value="6">6 giorni</option><option value="7">7 giorni</option></select>
-          </label>
-          <label>Passo recente (facoltativo, non basta per stimare le zone)
-            <div class="input-suffix"><input type="text" name="recentPace" inputmode="numeric" placeholder="es. 5:45"><span>min/km</span></div>
-          </label>
-          <label>Gara recente per stimare i ritmi (facoltativa)
-            <select name="recentRaceDistance"><option value="">Nessuna gara recente</option><option value="5">5 km</option><option value="10">10 km</option><option value="21.0975">Mezza maratona (21,1 km)</option></select>
-          </label>
-          <label>Tempo gara recente (mm:ss o h:mm:ss)
-            <input type="text" name="recentRaceTime" inputmode="numeric" placeholder="es. 52:30">
-          </label>
-        </div>
-        <label class="check-row"><input type="checkbox" name="symptoms"><span>Ho dolore o sintomi insoliti che potrebbero influire sulla corsa</span></label>
-        <p class="form-note">Il passo non verrà usato per inventare un ritmo maratona. Se inserisci distanza e tempo di una gara recente (5 km, 10 km o mezza maratona), il piano mostrerà fasce di ritmo indicative. Lascia entrambi vuoti se non hai un risultato recente.</p>
-        <button class="primary-button" type="submit">Genera il mio piano <span>↗</span></button>
-        <div id="profile-error" class="error" role="alert" hidden></div>
-      </form>
-    </section>
-    <section id="plan-section" class="panel" hidden>
-      <div class="section-heading"><div><div class="eyebrow">IL TUO PROGRAMMA</div><h2>La preparazione, settimana per settimana</h2></div><span class="step">02</span></div>
-      <div id="plan-summary" class="summary-grid"></div>
-      <div id="plan-warnings"></div>
-      <div id="plan-weeks" class="weeks-list"></div>
-    </section>
-    <section id="daily-session-section" class="panel daily-session-panel" hidden>
-      <div class="section-heading"><div><div class="eyebrow">ALLENAMENTO DI OGGI</div><h2>La tua seduta</h2></div><span class="step">02</span></div>
-      <div id="daily-session-content"><p class="form-note">Genera un piano per vedere qui la seduta prevista per oggi.</p></div>
-      <div class="daily-feedback">
-        <h3>Com'è andata davvero?</h3>
-        <p class="form-note">Registra ciò che hai fatto. Il feedback genera una proposta motivata: non cambia automaticamente il piano.</p>
-        <form id="daily-session-form">
-          <div class="form-grid">
-            <label>Esito della seduta
-              <select name="completion" required><option value="completed">Completata</option><option value="modified">Completata in modo diverso</option><option value="skipped">Non svolta</option></select>
-            </label>
-            <label>Distanza effettiva (km)<input type="number" name="distanceKm" min="0.1" max="300" step="0.1" placeholder="es. 8"></label>
-            <label>Durata effettiva (minuti)<input type="number" name="durationMinutes" min="1" max="2880" step="1" placeholder="es. 48"></label>
-            <label>Sforzo percepito (RPE 1–10)
-              <select name="rpe"><option value="">Non indicato</option><option value="1">1 — Molto facile</option><option value="2">2</option><option value="3">3 — Facile</option><option value="4">4</option><option value="5">5 — Moderato</option><option value="6">6</option><option value="7">7 — Duro</option><option value="8">8</option><option value="9">9</option><option value="10">10 — Massimale</option></select>
-            </label>
+  <nav class="tabs" aria-label="Sezioni">
+    <button type="button" class="tab" data-tab="oggi">Oggi</button>
+    <button type="button" class="tab" data-tab="piano">Piano</button>
+    <button type="button" class="tab" data-tab="progressi">Progressi</button>
+    <button type="button" class="tab" data-tab="profilo">Profilo</button>
+  </nav>
+  <main class="wrap">
+    <section id="view-oggi" class="view" hidden></section>
+    <section id="view-piano" class="view" hidden></section>
+    <section id="view-progressi" class="view" hidden>
+      <div id="progress-content"></div>
+      <div class="card">
+        <h2>Registra un allenamento</h2>
+        <form id="activity-form" class="form">
+          <div class="grid2">
+            <label>Data<input type="date" name="date" required></label>
+            <label>Distanza (km)<input type="number" name="distanceKm" min="0.1" max="300" step="0.01" required></label>
+            <label>Durata (minuti)<input type="number" name="durationMin" min="1" max="2880" step="0.1"></label>
+            <label>Sforzo (RPE 1–10)<select name="rpe"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
           </div>
-          <label>Note su sensazioni e recupero (facoltative)<textarea name="notes" rows="2" maxlength="2000" placeholder="Respiro, gambe, sonno, condizioni..."></textarea></label>
-          <label class="check-row"><input type="checkbox" name="fatigue"><span>Fatica insolita o recupero insufficiente</span></label>
-          <label class="check-row"><input type="checkbox" name="pain"><span>Dolore o sintomi preoccupanti</span></label>
-          <button class="primary-button" type="submit">Registra e valuta <span>↗</span></button>
-          <div id="daily-session-message" class="message" role="status" hidden></div>
+          <label>Note<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+          <button class="btn secondary" type="submit">Salva allenamento</button>
+          <p id="activity-message" class="note ok" role="status" hidden></p>
+        </form>
+        <div class="divider"><span>oppure importa da file</span></div>
+        <label class="file">Scegli un file CSV, GPX o TCX<input id="activity-file" type="file" accept=".csv,.gpx,.tcx,.fit"></label>
+        <p class="note">Prima mostriamo un'anteprima da confermare. FIT non è ancora supportato.</p>
+        <div id="import-preview" hidden></div>
+      </div>
+      <div class="card"><div class="row-between"><h2>Ultimi allenamenti</h2><button id="export-button" class="link" type="button">Esporta dati ↓</button></div><div id="workout-history" class="list"></div></div>
+    </section>
+    <section id="view-profilo" class="view" hidden>
+      <div class="card">
+        <h2>Il tuo obiettivo</h2>
+        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi e lunghi si adattano al tempo obiettivo.</p>
+        <form id="profile-form" class="form">
+          <div class="grid2">
+            <label>Data della maratona<input type="date" name="raceDate" required></label>
+            <label>Tempo obiettivo (h:mm)<input type="text" name="goal" inputmode="numeric" placeholder="es. 4:00" required pattern="\d:[0-5]\d(:[0-5]\d)?"></label>
+            <label>Giorni di corsa a settimana<select name="daysAvailable"><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label>
+            <label>Km in una settimana tipica<input type="number" name="weeklyKm" min="0" max="300" step="0.5" value="30" required></label>
+            <label>Lungo più recente (km)<input type="number" name="longestRunKm" min="0" max="100" step="0.5" value="16" required></label>
+            <label>Gara recente (facoltativa)<select name="recentRaceDistance"><option value="">Nessuna</option><option value="5">5 km</option><option value="10">10 km</option><option value="21.0975">Mezza maratona</option></select></label>
+            <label>Tempo gara recente<input type="text" name="recentRaceTime" inputmode="numeric" placeholder="es. 52:30 o 1:55:00"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="symptoms"><span>Ho dolore o sintomi insoliti che potrebbero influire sulla corsa</span></label>
+          <button class="btn" type="submit">Genera il piano</button>
+          <p id="profile-error" class="note err" role="alert" hidden></p>
         </form>
       </div>
+      <p class="note" id="disclaimer"></p>
     </section>
-    <section class="panel activity-panel">
-      <div class="section-heading"><div><div class="eyebrow">FEEDBACK REALE</div><h2>Registra un allenamento</h2></div><span class="step">03</span></div>
-      <form id="activity-form">
-        <div class="form-grid">
-          <label>Data<input type="date" name="date" required></label>
-          <label>Distanza<div class="input-suffix"><input type="number" name="distanceKm" min="0.1" max="300" step="0.1" required><span>km</span></div></label>
-          <label>Durata (secondi, facoltativa)<input type="number" name="durationSec" min="1" max="172800" placeholder="es. 3600"></label>
-          <label>Sforzo percepito (RPE 1–10)
-            <select name="rpe"><option value="">Non indicato</option><option value="1">1 — Molto facile</option><option value="2">2</option><option value="3">3 — Facile</option><option value="4">4</option><option value="5">5 — Moderato</option><option value="6">6</option><option value="7">7 — Duro</option><option value="8">8</option><option value="9">9</option><option value="10">10 — Massimale</option></select>
-          </label>
-        </div>
-        <label>Note (facoltative)<textarea name="notes" rows="2" maxlength="2000" placeholder="Come ti sei sentito?"></textarea></label>
-        <button class="secondary-button" type="submit">Salva allenamento</button>
-        <div id="activity-message" class="message" role="status" hidden></div>
-      </form>
-      <div class="import-divider"><span>OPPURE IMPORTA DA FILE</span></div>
-      <label class="file-picker">Scegli un file CSV, GPX o TCX<input id="activity-file" type="file" accept=".csv,.gpx,.tcx,.fit"></label>
-      <p class="form-note">Prima mostriamo un'anteprima da controllare. I file FIT sono riconosciuti, ma il decoder non è ancora installato.</p>
-      <div id="import-preview" hidden></div>
-    </section>
-    <section class="panel" id="review-panel">
-      <div class="section-heading"><div><div class="eyebrow">ADATTAMENTO RESPONSABILE</div><h2>Rivedi l’ultima settimana</h2></div><span class="step">04</span></div>
-      <p class="form-note">Confrontiamo le attività registrate con l’ultima settimana completa del piano attivo. La revisione si sblocca dopo i primi 7 giorni; registra tutte le attività del periodo prima di procedere. La valutazione resta indicativa.</p>
-      <form id="review-form">
-        <div class="form-grid">
-          <label>Allenamenti saltati (non da recuperare)
-            <select name="missedSessions"><option value="0">Nessuno</option><option value="1">1 seduta</option><option value="2">2 sedute</option><option value="3">3 o più sedute</option></select>
-          </label>
-          <label class="check-row"><input type="checkbox" name="fatigue"><span>Fatica insolita o recupero insufficiente</span></label>
-          <label class="check-row"><input type="checkbox" name="pain"><span>Dolore o sintomi preoccupanti</span></label>
-        </div>
-        <button class="secondary-button" type="submit">Valuta e adatta il carico</button>
-        <div id="review-message" class="message" role="status" hidden></div>
-      </form>
-    </section>
-    <section class="panel history-panel">
-      <div class="section-heading"><div><div class="eyebrow">CONTINUITÀ</div><h2>Ultimi allenamenti</h2></div><button id="export-button" class="text-button" type="button">Esporta dati ↓</button></div>
-      <div id="workout-history" class="history-list"></div>
-    </section>
-    <footer><span>RUNNING / PLANNER · PROTOTIPO</span><span>Supporto alla pianificazione, non consiglio medico.</span></footer>
   </main>
   <script type="module" src="./src/app.js"></script>
 </body>
