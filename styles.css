@@ -142,3 +142,6 @@ details.fold>.fold-body{margin-top:12px}
 ol.how{margin:8px 0 0;padding-left:20px;font-size:13px;color:var(--sub)}
 .grid2>.time-set{grid-column:1/-1}
 .note+.form{margin-top:14px}
+
+.btn.danger{background:var(--err);color:#fff;border:0}
+.danger-box{border-color:var(--err);background:color-mix(in srgb,var(--err) 10%,transparent);margin-top:12px}

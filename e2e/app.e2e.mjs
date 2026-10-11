@@ -197,6 +197,27 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   await ctx.close();
 }
 
+// 10. reset di piano e dati, con conferma in due passaggi
+{
+  const { ctx, page } = await newPage();
+  await createPlan(page, { goal: "4:00", extra: { maxHr: "190" } });
+  await page.click(".tab[data-tab=progressi]");
+  await page.fill("#activity-form [name=distanceKm]", "5"); await page.click("#activity-form button[type=submit]");
+  await page.click(".tab[data-tab=profilo]");
+  await page.click("#reset-start");
+  assert.equal(await page.locator("#reset-confirm").isVisible(), true);
+  await page.click("#reset-no");
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem("running-planner:v2")).plan)); ok("annulla: i dati restano");
+  await page.click("#reset-start"); await page.click("#reset-yes"); await page.waitForTimeout(200);
+  const st = await page.evaluate(() => JSON.parse(localStorage.getItem("running-planner:v2")));
+  assert.deepEqual([st.plan, st.profile, st.workouts.length, st.feedback.length, st.tests.length], [null, null, 0, 0, 0]);
+  assert.equal(await page.locator("[name=raceDate]").inputValue(), "");
+  assert.equal(await page.locator("[name=maxHr]").inputValue(), "");
+  await page.click(".tab[data-tab=oggi]");
+  assert.ok((await page.locator("#view-oggi").innerText()).includes("Benvenuto")); ok("reset completo: tutto azzerato");
+  await ctx.close();
+}
+
 await browser.close(); server.close();
 assert.deepEqual(errors, [], "errori in console: " + errors.join(" | "));
 console.log("Tutto ok");
