@@ -109,7 +109,7 @@ $("#daily-session-form").addEventListener("submit", event => {
   event.preventDefault();
   const form = event.currentTarget, data = new FormData(form), message = $("#daily-session-message");
   try {
-    const runner = state.runners[0], plan = state.plans[0], ctx = getDailySessionContext(plan);
+    const runner = state.runners[0], plan = state.plans[0], ctx = getDailySessionContext(plan, today());
     if (!runner || !plan || !ctx || !ctx.session) throw new Error("Non c\u0027è una seduta pianificata per oggi da confrontare.");
     if (plan.status === "paused" || runner.hasConcerningSymptoms) throw new Error("Il piano è sospeso: serve una valutazione appropriata prima di riprendere.");
     const completion = String(data.get("completion")), distanceText = String(data.get("distanceKm") ?? "").trim(), durationText = String(data.get("durationMinutes") ?? "").trim(), rpeText = String(data.get("rpe") ?? "").trim();
