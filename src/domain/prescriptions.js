@@ -30,7 +30,7 @@ export function buildSessionPrescription(session) {
   } else if (session.type === "threshold") {
     title = "Soglia controllata";
     effort = "RPE 6/10";
-    instruction = instruction + " Il ritmo deve restare uniforme e sostenibile; interrompi la parte intensa se perdi controllo.";
+    instruction = instruction + " Recupera in corsa facile tra i blocchi; il ritmo deve restare uniforme e sostenibile. Interrompi la parte intensa se perdi controllo.";
   } else if (session.type === "marathon_pace") {
     title = "Ritmo maratona";
     effort = "RPE 5–6/10, solo se validato";
