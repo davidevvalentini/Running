@@ -25,9 +25,11 @@ const persist = () => {
 /* ---------- sincronizzazione col server (se disponibile) ---------- */
 const REMOTE = "/api/running-state";
 async function pushRemote() {
+  if (!embedded) return;
   try { await fetch(REMOTE, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(state) }); } catch { /* solo locale */ }
 }
 async function pullRemote() {
+  if (!embedded) return;
   try {
     const res = await fetch(REMOTE, { headers: { accept: "application/json" } });
     if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return;
