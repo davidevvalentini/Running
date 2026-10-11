@@ -2,6 +2,7 @@ import { generatePlan, reviewTrainingWeek, applyAdjustment, getLatestCompletedPl
 import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
+import { buildSessionPrescription } from "./domain/prescriptions.js";
 
 const store = createLocalStore();
 let state = store.read();
@@ -67,7 +68,7 @@ function renderPlan(plan) {
   }
   $("#plan-weeks").innerHTML = plan.weeks.map(week => `<details class="week-card" ${week.week === 1 ? "open" : ""}>
     <summary><span class="week-num">W${String(week.week).padStart(2,"0")}</span><span><span class="week-title">${esc(week.recovery ? "Settimana di recupero" : "Settimana " + week.week)}</span><span class="week-sub"> · ${esc(week.guidance)}</span></span><span class="phase">${esc(labels[week.phase] ?? week.phase)}</span><span class="week-km">${week.targetKm.toLocaleString("it-IT")} km</span></summary>
-    <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
+    <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small><div class="prescription-steps">${buildSessionPrescription(s).steps.map(step => `<div class="prescription-step"><span>${esc(step.title)} · ${step.distanceKm.toLocaleString("it-IT")} km</span><small>${esc(step.effort)} — ${esc(step.instruction)}</small></div>`).join("")}</div><small class="session-main">${esc(buildSessionPrescription(s).note)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
   </details>`).join("");
   $("#plan-section").scrollIntoView({behavior:"smooth",block:"start"});
 }
