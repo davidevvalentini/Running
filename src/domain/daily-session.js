@@ -9,11 +9,22 @@ export function getDailySessionContext(plan, date) {
   const weekIndex = Math.floor(dayOffset / 7);
   const week = plan.weeks[weekIndex];
   if (!week) return { finished: true, weekIndex };
-  const dayName = DAY_NAMES[new Date(date + "T12:00:00").getDay()];
+  const dateObj = new Date(date + "T00:00:00Z");
+  const dayIndex = dateObj.getUTCDay();
+  const dayName = DAY_NAMES[dayIndex];
+  const weekStartMs = startMs + weekIndex * 7 * 86400000;
+  const weekEndMs = weekStartMs + 7 * 86400000;
+  const upcoming = week.sessions.map(item => {
+    const targetDay = DAY_NAMES.indexOf(item.day);
+    if (targetDay < 0) return null;
+    const delta = (targetDay - dayIndex + 7) % 7;
+    const sessionMs = dateMs + delta * 86400000;
+    return { item, delta, sessionMs };
+  }).filter(item => item && item.sessionMs >= weekStartMs && item.sessionMs < weekEndMs);
   return {
     week, weekNumber: week.week, dayName,
-    session: week.sessions.find(item => item.day === dayName) ?? null,
-    nextSession: week.sessions.find(item => DAY_NAMES.indexOf(item.day) > DAY_NAMES.indexOf(dayName)) ?? null,
+    session: upcoming.find(item => item.delta === 0)?.item ?? null,
+    nextSession: upcoming.filter(item => item.delta > 0).sort((a, b) => a.delta - b.delta)[0]?.item ?? null,
     date, weekIndex
   };
 }
