@@ -23,6 +23,25 @@ test("selects today's planned session and next session within the plan week", ()
   assert.equal(wednesday.nextSession.type, "long");
 });
 
+test("does not offer weekday sessions that fall before a midweek plan start", () => {
+  const midweekPlan = {
+    startDate: "2026-10-15",
+    weeks: [
+      { week: 1, phase: "base", sessions: [
+        { day: "Martedì", type: "easy", distanceKm: 5 },
+        { day: "Giovedì", type: "long", distanceKm: 8 },
+        { day: "Sabato", type: "easy", distanceKm: 4 }
+      ]}
+    ]
+  };
+  const thursday = getDailySessionContext(midweekPlan, "2026-10-15");
+  assert.equal(thursday.session.type, "long");
+  assert.equal(thursday.nextSession.day, "Sabato");
+  const sunday = getDailySessionContext(midweekPlan, "2026-10-18");
+  assert.equal(sunday.session, null);
+  assert.equal(sunday.nextSession, null);
+});
+
 test("returns no context before plan start and identifies plan completion", () => {
   assert.equal(getDailySessionContext(plan, "2026-10-11"), null);
   assert.equal(getDailySessionContext(plan, "2026-10-26").finished, true);
