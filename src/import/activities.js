@@ -8,8 +8,11 @@ function safeNumber(value) {
 }
 function dateOnly(value) {
   if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text; // data semplice: nessuna conversione di fuso
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function workoutRow(row, source) {
   const distanceKm = safeNumber(row.distanceKm);

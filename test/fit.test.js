@@ -55,3 +55,20 @@ test("import attività: session -> corsa", () => {
 test("workout FIT non è un'attività", () => {
   assert.throws(() => previewFit({ buffer: encodeWorkoutFit({ name: "x", steps, paces }) }), /Nessuna corsa/);
 });
+
+test("la data dell'attività è quella locale, non UTC", () => {
+  const prev = process.env.TZ;
+  try {
+    const body = [];
+    const u16 = v => body.push(v & 255, v >> 8), u32 = v => body.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255);
+    body.push(0x40, 0, 0); u16(18); body.push(3, 2, 4, 0x86, 8, 4, 0x86, 9, 4, 0x86);
+    body.push(0); u32(Math.floor((Date.UTC(2026, 10, 17, 23, 30) - Date.UTC(1989, 11, 31)) / 1000)); u32(1_800_000); u32(500_000);
+    const header = [14, 0x20, 0x54, 0x08, body.length & 255, body.length >> 8, 0, 0, 0x2E, 0x46, 0x49, 0x54, 0, 0];
+    const hc = crc16(header, 0, 12); header[12] = hc & 255; header[13] = hc >> 8;
+    const all = [...header, ...body]; const c = crc16(all); all.push(c & 255, c >> 8);
+    process.env.TZ = "Europe/Rome";       // 17/11 23:30 UTC = 18/11 00:30 a Roma
+    assert.equal(decodeFitActivities(new Uint8Array(all))[0].date, "2026-11-18");
+    process.env.TZ = "America/Los_Angeles"; // = 17/11 15:30 a Los Angeles
+    assert.equal(decodeFitActivities(new Uint8Array(all))[0].date, "2026-11-17");
+  } finally { if (prev === undefined) delete process.env.TZ; else process.env.TZ = prev; }
+});

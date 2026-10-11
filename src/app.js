@@ -1,4 +1,4 @@
-import { generatePlan, planSummary, requiredAbilities, DISTANCES, WEEKDAYS_SHORT } from "./domain/plan.js";
+import { generatePlan, planSummary, requiredAbilities, DISTANCES, wdShort } from "./domain/plan.js";
 import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES } from "./domain/paces.js";
 import { expandSteps, notation } from "./domain/session.js";
 import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, weekAdherence } from "./domain/adapt.js";
@@ -98,7 +98,7 @@ function currentProposals() {
 }
 function sessionActions(day, eff) {
   const plan = state.plan, targets = day.date >= today() ? moveTargets(plan, day.date, today()) : [];
-  const sel = targets.length ? `<select data-move-from="${esc(day.date)}" aria-label="Sposta la seduta"><option value="">Sposta a…</option>${targets.map(d => `<option value="${esc(d.date)}">${WEEKDAYS_SHORT[d.dayIndex]} ${fmtDate(d.date)}${d.session ? " (scambia)" : ""}</option>`).join("")}</select>` : "";
+  const sel = targets.length ? `<select data-move-from="${esc(day.date)}" aria-label="Sposta la seduta"><option value="">Sposta a…</option>${targets.map(d => `<option value="${esc(d.date)}">${wdShort(d.date)} ${fmtDate(d.date)}${d.session ? " (scambia)" : ""}</option>`).join("")}</select>` : "";
   return `<div class="actions-row"><button class="btn small secondary" data-fit="${esc(day.date)}" type="button">Scarica .FIT</button>${sel}</div>`;
 }
 const planLabel = plan => plan.distanceLabel ?? "Maratona";
@@ -132,7 +132,7 @@ function renderOggi() {
   if (loc.state === "before") {
     const n = nextSession(plan, t) ?? { day: plan.weeks[0].days.find(d => d.session) };
     const first = plan.weeks[0].days.find(d => d.session), eff = effectiveSession(plan, first);
-    html += `<div class="card"><h2>Il piano inizia tra ${loc.daysToStart} ${loc.daysToStart === 1 ? "giorno" : "giorni"}</h2><p class="note">Prima seduta: ${esc(WEEKDAYS_SHORT[first.dayIndex])} ${fmtDate(first.date)}.</p><h3 class="session-title">${esc(eff.title)}</h3>${sessionBlock(eff)}</div><div class="card"><h2>Hai già corso?</h2><p class="note">Il piano non è ancora iniziato, ma puoi registrare lo stesso un allenamento: servirà a valutare la tua base.</p><p><button class="btn secondary" data-goto="progressi" type="button">Registra un allenamento</button></p></div>`;
+    html += `<div class="card"><h2>Il piano inizia tra ${loc.daysToStart} ${loc.daysToStart === 1 ? "giorno" : "giorni"}</h2><p class="note">Prima seduta: ${esc(wdShort(first.date))} ${fmtDate(first.date)}.</p><h3 class="session-title">${esc(eff.title)}</h3>${sessionBlock(eff)}</div><div class="card"><h2>Hai già corso?</h2><p class="note">Il piano non è ancora iniziato, ma puoi registrare lo stesso un allenamento: servirà a valutare la tua base.</p><p><button class="btn secondary" data-goto="progressi" type="button">Registra un allenamento</button></p></div>`;
     void n;
   } else if (loc.state === "after") {
     html += `<div class="card"><h2>Piano concluso</h2><p class="note">Il periodo del piano è terminato. Nel profilo puoi crearne uno nuovo per il prossimo obiettivo.</p></div>`;
@@ -140,17 +140,17 @@ function renderOggi() {
     const { week, day } = loc, eff = effectiveSession(plan, day);
     if (eff) {
       const fb = state.feedback.find(f => f.date === t && f.planId === plan.id);
-      html += `<div class="card"><div class="today-head"><span><span class="badge ${esc(eff.kind)}">${KIND[eff.kind]}</span> ${eff.adjusted ? '<span class="badge">adattata</span>' : ""}</span><span>Oggi, ${esc(WEEKDAYS_SHORT[day.dayIndex])} ${fmtDate(t)} · Settimana ${week.week}/${plan.totalWeeks} · ${PHASE[week.phase]}</span></div><h3 class="session-title">${esc(eff.title)}</h3>${eff.note ? `<p class="note">${esc(eff.note)}</p>` : ""}${sessionBlock(eff)}${sessionActions(day, eff)}${eff.rpe && eff.rpe !== "—" ? `<p class="note">Sforzo atteso: RPE ${esc(eff.rpe)}/10. Se il corpo dice altro, il ritmo cede il passo allo sforzo.</p>` : ""}</div>`;
+      html += `<div class="card"><div class="today-head"><span><span class="badge ${esc(eff.kind)}">${KIND[eff.kind]}</span> ${eff.adjusted ? '<span class="badge">adattata</span>' : ""}</span><span>Oggi, ${esc(wdShort(day.date))} ${fmtDate(t)} · Settimana ${week.week}/${plan.totalWeeks} · ${PHASE[week.phase]}</span></div><h3 class="session-title">${esc(eff.title)}</h3>${eff.note ? `<p class="note">${esc(eff.note)}</p>` : ""}${sessionBlock(eff)}${sessionActions(day, eff)}${eff.rpe && eff.rpe !== "—" ? `<p class="note">Sforzo atteso: RPE ${esc(eff.rpe)}/10. Se il corpo dice altro, il ritmo cede il passo allo sforzo.</p>` : ""}</div>`;
       html += feedbackCard(fb, eff);
     } else {
       const nxt = nextSession(plan, t);
-      html += `<div class="card"><div class="today-head"><span><span class="badge">Riposo</span></span><span>Oggi, ${esc(WEEKDAYS_SHORT[day.dayIndex])} ${fmtDate(t)} · Settimana ${week.week}/${plan.totalWeeks}</span></div><h3 class="session-title">Oggi si recupera</h3><p class="note">Rispetta il giorno di riposo: è lì che si assimila l'allenamento. Una seduta saltata non va mai recuperata.</p></div>`;
+      html += `<div class="card"><div class="today-head"><span><span class="badge">Riposo</span></span><span>Oggi, ${esc(wdShort(day.date))} ${fmtDate(t)} · Settimana ${week.week}/${plan.totalWeeks}</span></div><h3 class="session-title">Oggi si recupera</h3><p class="note">Rispetta il giorno di riposo: è lì che si assimila l'allenamento. Una seduta saltata non va mai recuperata.</p></div>`;
       html += feedbackCard(state.feedback.find(f => f.date === t && f.planId === plan.id), EXTRA, "Hai corso comunque?");
-      if (nxt) { const e2 = effectiveSession(plan, nxt.day); html += `<div class="card"><div class="today-head"><span><span class="badge ${esc(e2.kind)}">${KIND[e2.kind]}</span></span><span>Prossima: ${esc(WEEKDAYS_SHORT[nxt.day.dayIndex])} ${fmtDate(nxt.day.date)}</span></div><h3 class="session-title">${esc(e2.title)}</h3>${sessionBlock(e2)}</div>`; }
+      if (nxt) { const e2 = effectiveSession(plan, nxt.day); html += `<div class="card"><div class="today-head"><span><span class="badge ${esc(e2.kind)}">${KIND[e2.kind]}</span></span><span>Prossima: ${esc(wdShort(nxt.day.date))} ${fmtDate(nxt.day.date)}</span></div><h3 class="session-title">${esc(e2.title)}</h3>${sessionBlock(e2)}</div>`; }
     }
     html += `<div class="card"><h2>Questa settimana</h2><p class="note">${esc(week.name)} — ${esc(week.text)}</p><div class="weekstrip" style="margin-top:12px">${week.days.map(d => {
       const e = effectiveSession(plan, d), done = e && doneKm(d.date) > 0;
-      return `<div class="wd ${d.date === t ? "today" : ""} ${done ? "done" : ""} ${e ? "" : "restday"}"><b>${WEEKDAYS_SHORT[d.dayIndex]}</b>${e ? `<span class="km">${fmtKm(e.km)}</span><span class="dot ${esc(e.kind)}"></span>` : `<span class="km">—</span>`}</div>`;
+      return `<div class="wd ${d.date === t ? "today" : ""} ${done ? "done" : ""} ${e ? "" : "restday"}"><b>${wdShort(d.date)}</b>${e ? `<span class="km">${fmtKm(e.km)}</span><span class="dot ${esc(e.kind)}"></span>` : `<span class="km">—</span>`}</div>`;
     }).join("")}</div></div>`;
   }
   el.innerHTML = html;
@@ -221,7 +221,7 @@ function renderPiano() {
   html += plan.weeks.map(w => `<details class="week ${w.week === curWeek ? "current" : ""}" ${w.week === curWeek || (!curWeek && w.week === 1) ? "open" : ""}><summary><span class="wn">S${w.week}</span><span><span class="wt">${esc(w.name)}</span><br><span class="ws">${esc(PHASE[w.phase])}${w.recovery ? " · scarico" : ""} · ${fmtDate(w.days[0].date)}–${fmtDate(w.days[6].date)}</span></span><span class="wk">${fmtKm(w.km)} km</span></summary>
       <div class="week-body"><p>${esc(w.text)}</p>${w.days.map(d => {
         const e = effectiveSession(plan, d), done = doneKm(d.date);
-        return `<div class="day ${d.date === t ? "today" : ""}"><div class="dn">${WEEKDAYS_SHORT[d.dayIndex]}<small>${fmtDate(d.date)}</small></div><div>${e ? `<span class="badge ${esc(e.kind)}">${KIND[e.kind]}</span> <strong>${esc(e.title)}</strong>${e.adjusted ? ' <span class="badge">adattata</span>' : ""} ${done ? `<span class="ok">✓ ${fmtKm(done)} km</span>` : ""}<div class="notation" style="margin-top:6px">${esc(notation(e.steps))}</div><div class="tot">Tot: ${fmtKm(e.km)} km in ${fmtDuration(e.sec)} · media ${fmtPace(e.avgPaceSec)}/km</div>${d.date >= t ? sessionActions(d, e) : ""}` : `<span class="muted">Riposo</span>`}</div></div>`;
+        return `<div class="day ${d.date === t ? "today" : ""}"><div class="dn">${wdShort(d.date)}<small>${fmtDate(d.date)}</small></div><div>${e ? `<span class="badge ${esc(e.kind)}">${KIND[e.kind]}</span> <strong>${esc(e.title)}</strong>${e.adjusted ? ' <span class="badge">adattata</span>' : ""} ${done ? `<span class="ok">✓ ${fmtKm(done)} km</span>` : ""}<div class="notation" style="margin-top:6px">${esc(notation(e.steps))}</div><div class="tot">Tot: ${fmtKm(e.km)} km in ${fmtDuration(e.sec)} · media ${fmtPace(e.avgPaceSec)}/km</div>${d.date >= t ? sessionActions(d, e) : ""}` : `<span class="muted">Riposo</span>`}</div></div>`;
       }).join("")}</div></details>`).join("");
   el.innerHTML = html;
 }
@@ -302,7 +302,7 @@ document.addEventListener("click", e => {
   if (t.dataset.goto) { location.hash = `#${t.dataset.goto}`; return; }
   if (t.dataset.accept != null) {
     const p = currentProposals().find(x => x.id === t.dataset.accept); if (!p) return;
-    state.plan = p.kind === "pause" ? { ...state.plan, status: "paused" } : applyAdjustment(state.plan, p);
+    state.plan = p.kind === "pause" ? { ...state.plan, status: "paused" } : applyAdjustment(state.plan, p, today());
     persist(); return renderAll();
   }
   if (t.dataset.dismiss != null) { state.dismissed.push(t.dataset.dismiss); persist(); return renderAll(); }
