@@ -38,6 +38,7 @@ function readRunner(form) {
     id: state.runners[0]?.id ?? "runner-local",
     level: String(data.get("level")),
     raceDate: String(data.get("raceDate")),
+    goalMarathonTimeSec: parseRaceTime(String(data.get("goalMarathonTime") ?? "")),
     weeklyKm: Number(data.get("weeklyKm")),
     longestRunKm: Number(data.get("longestRunKm")),
     daysAvailable: Number(data.get("daysAvailable")),
@@ -203,6 +204,9 @@ function restoreProfile() {
   const form = $("#profile-form");
   for (const key of ["level","raceDate","weeklyKm","longestRunKm","daysAvailable"]) if (runner[key] != null) form.elements[key].value = runner[key];
   if (runner.recentPaceSecPerKm) form.elements.recentPace.value = `${Math.floor(runner.recentPaceSecPerKm/60)}:${String(runner.recentPaceSecPerKm%60).padStart(2,"0")}`;
+  if (runner.goalMarathonTimeSec) form.elements.goalMarathonTime.value = formatRaceTime(runner.goalMarathonTimeSec);
+  if (runner.recentRaceDistanceKm) form.elements.recentRaceDistance.value = String(runner.recentRaceDistanceKm);
+  if (runner.recentRaceTimeSec) form.elements.recentRaceTime.value = formatRaceTime(runner.recentRaceTimeSec);
   form.elements.symptoms.checked = Boolean(runner.hasConcerningSymptoms);
   if (state.plans[0]) renderPlan(state.plans[0]);
 }
