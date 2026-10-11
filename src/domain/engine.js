@@ -94,7 +94,7 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
       : "La seduta è troppo breve per ripetute di soglia con recupero adeguato: svolgi la parte centrale a ritmo facile e non forzare.";
   } else {
     mainSet = paceZones
-      ? `Parte centrale a ritmo maratona stimato di ${paceZones.labels.marathon} min/km solo come riferimento iniziale; se il ritmo non è sostenibile, rallenta o corri facile. Stima teorica da gara recente, da validare in allenamento.`
+      ? `Parte centrale a ritmo maratona ${paceZones.labels.targetMarathon ?? paceZones.labels.marathon} min/km ${paceZones.labels.targetMarathon ? "come obiettivo da verificare gradualmente, non da forzare" : "stimato"}; se il ritmo non è sostenibile, rallenta o corri facile. ${paceZones.labels.targetMarathon ? "Il ritmo obiettivo non dimostra che il tempo gara sia raggiungibile." : "Stima teorica da gara recente, da validare in allenamento."}`
       : "Parte centrale a ritmo maratona solo se il ritmo obiettivo deriva da una gara recente o da una valutazione attendibile; altrimenti svolgila a ritmo facile (RPE 3–4/10). Non inseguire un ritmo ipotetico.";
   }
   return { warmupKm, mainKm, cooldownKm, mainSet };
@@ -181,6 +181,9 @@ export function generatePlan(runner, options = {}) {
   if (weeksToRace < 1) throw new RangeError("Race date must be at least one week in the future.");
   const context = classifyTrainingContext(runner);
   const paceZones = estimatePaceZones(runner);
+  const targetMarathonPaceSecPerKm = runner.goalMarathonTimeSec ? runner.goalMarathonTimeSec / 42.195 : null;
+  const sessionPaceZones = paceZones ?? (targetMarathonPaceSecPerKm ? { labels: {} } : null);
+  if (targetMarathonPaceSecPerKm && sessionPaceZones) sessionPaceZones.labels.targetMarathon = paceLabel(targetMarathonPaceSecPerKm);
   const totalWeeks = Math.min(weeksToRace, 52);
   const warnings = [];
   if (weeksToRace < 10) warnings.push("Less than 10 weeks remain. This prototype cannot establish whether a safe marathon build is feasible; consider a qualified coach and/or a later race.");
@@ -224,7 +227,7 @@ export function generatePlan(runner, options = {}) {
       longKm = round1(Math.min(previousLongKm + 1, targetKm * longCap, targetKm));
     }
     longKm = Math.max(0, longKm);
-    const sessions = assignSessionDays(splitSessions({ targetKm, longKm, days: runner.daysAvailable, context, phase, recovery, runner, paceZones }), runner.daysAvailable);
+    const sessions = assignSessionDays(splitSessions({ targetKm, longKm, days: runner.daysAvailable, context, phase, recovery, runner, paceZones: sessionPaceZones }), runner.daysAvailable);
     const actualKm = round1(sessions.reduce((sum, s) => sum + s.distanceKm, 0));
     weeks.push({
       week: i, phase, recovery, targetKm: actualKm, sessions,
@@ -242,7 +245,7 @@ export function generatePlan(runner, options = {}) {
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     startDate: today, raceDate: runner.raceDate, level: runner.level, context, totalWeeks,
-    weeks, warnings, paceZones,
+    weeks, warnings, paceZones, goalMarathonTimeSec: runner.goalMarathonTimeSec ?? null, targetMarathonPaceSecPerKm,
     disclaimer: "Prototype training guidance, not medical advice or a validated marathon prescription. Stop for concerning symptoms and seek qualified advice. Race readiness is not guaranteed."
   };
 }
