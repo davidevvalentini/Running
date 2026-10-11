@@ -6,6 +6,11 @@
 const FIT_EPOCH_MS = Date.UTC(1989, 11, 31, 0, 0, 0);
 const CRC_TABLE = [0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401, 0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400];
 
+// Data nel fuso del dispositivo: una corsa alle 00:30 locali non è del giorno prima.
+export function localISODate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function crc16(bytes, start = 0, end = bytes.length) {
   let crc = 0;
   for (let i = start; i < end; i++) {
@@ -134,7 +139,7 @@ export function decodeFitActivities(buffer) {
     const sport = f[5];
     if (sport != null && sport !== 1 && sport !== 0xFF) return null; // solo corsa
     if (start == null) return null;
-    const date = new Date(FIT_EPOCH_MS + start * 1000).toISOString().slice(0, 10);
+    const date = localISODate(new Date(FIT_EPOCH_MS + start * 1000));
     const km = meters != null ? meters / 1000 : null, sec = timer != null ? timer / 1000 : null;
     if (!(km > 0) && !(sec > 0)) return null;
     return { date, distanceKm: km > 0 ? Math.round(km * 100) / 100 : null, durationSec: sec > 0 ? Math.round(sec) : null, rpe: null, source: "fit", externalId: `fit:${start}:${i}`, notes: "" };

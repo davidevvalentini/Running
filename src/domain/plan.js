@@ -9,6 +9,8 @@ const round1 = n => Math.round(n * 10) / 10;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 export { addDays };
+// Etichetta del giorno dalla data reale (la gara può cadere in qualunque giorno).
+export const wdShort = iso => WEEKDAYS_SHORT[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7];
 
 // Giorni della settimana-tipo (0 = primo giorno, 6 = giorno di gara/lungo).
 const SLOTS = { easy: 1, quality: 2, easyB: 3, mid: 4, long: 6, easyC: 0 };

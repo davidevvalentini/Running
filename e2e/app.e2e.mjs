@@ -110,6 +110,40 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   assert.ok((await page.locator("#view-oggi").innerText()).includes("Hai già corso?")); ok("prima della partenza: registra un allenamento");
   await ctx.close();
 }
+// 4. gara di sabato: le etichette dei giorni seguono le date reali
+{
+  const { ctx, page } = await newPage();
+  await page.fill("[name=raceDate]", "2027-01-30"); await page.fill("[name=goal]", "4:00");
+  await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
+  await page.click(".tab[data-tab=piano]");
+  const labels = await page.locator("details.week").last().evaluate(el => { el.open = true; return [...el.querySelectorAll(".day .dn")].map(d => d.textContent.trim().slice(0, 2)); });
+  assert.deepEqual(labels, ["DO", "LU", "MA", "ME", "GI", "VE", "SA"]); ok("gara di sabato: etichette giorni corrette");
+  await ctx.close();
+}
+
+// 5. stato locale corrotto: l'app si apre comunque
+{
+  const ctx = await browser.newContext();
+  await ctx.addInitScript(`localStorage.setItem("running-planner:v2", JSON.stringify({plan:{id:"x",startDate:"2026-10-12",raceDate:"2027-01-31",racePaceSec:341,weeks:[{week:1,days:[]}]},workouts:[null,{date:5}]}))`);
+  const page = await ctx.newPage(); page.on("pageerror", e => errors.push(e.message));
+  await page.goto(base); await page.waitForTimeout(200);
+  assert.equal(await page.locator(".view:not([hidden])").count(), 1); ok("stato corrotto: nessuna pagina bianca");
+  await ctx.close();
+}
+
+// 6. a 320 px nessuna tab va in overflow orizzontale
+{
+  const { ctx, page } = await newPage();
+  await page.setViewportSize({ width: 320, height: 800 });
+  await createPlan(page, { extra: { maxHr: "190" } });
+  for (const tab of ["oggi", "piano", "progressi", "profilo"]) {
+    await page.click(`.tab[data-tab=${tab}]`);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(over <= 0, `overflow ${tab}: ${over}px`);
+  }
+  ok("320 px senza overflow"); await ctx.close();
+}
+
 await browser.close(); server.close();
 assert.deepEqual(errors, [], "errori in console: " + errors.join(" | "));
 console.log("Tutto ok");

@@ -128,3 +128,6 @@ details.fold>.fold-body{margin-top:12px}
 
 .actions-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
 .actions-row select{width:auto;padding:7px 10px;font-size:13px}
+.kv>div{min-width:0}.kv strong,.card h2{overflow-wrap:anywhere}
+.card,.week,.day{min-width:0}
+@media(max-width:360px){.kv{grid-template-columns:1fr}.wrap{padding-left:12px;padding-right:12px}.tabs{padding-left:2px;padding-right:2px}}

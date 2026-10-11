@@ -7,6 +7,8 @@ const DAY = 86400000;
 const diffDays = (a, b) => Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY);
 
 // RPE attesa per tipo di seduta (indicativa, per leggere il feedback).
+// Scostamento massimo cumulato dei ritmi dalle proposte (s/km): oltre, meglio rivedere l'obiettivo.
+export const MAX_SHIFT = 30;
 export const EXPECTED_RPE = { easy: 4, quality: 7, long: 5, race: 8, extra: 4 };
 
 const inRange = (adj, date) => date >= adj.fromDate && (adj.toDate == null || date <= adj.toDate);
@@ -23,11 +25,12 @@ export function effectiveSession(plan, day) {
   const session = day.session;
   if (!session) return null;
   const paces = pacesFor(plan, day.date);
+  // Gli aggiustamenti sovrapposti non si compongono: vale il più forte, mai la somma.
+  const active = (plan.adjustments ?? []).filter(a => inRange(a, day.date));
+  const factor = Math.min(1, ...active.map(a => a.volumeFactor ?? 1));
   let result = session;
-  for (const adj of (plan.adjustments ?? []).filter(a => inRange(a, day.date))) {
-    if (adj.qualityToEasy && result.kind === "quality") result = easyReplacement(result, paces);
-    if (adj.volumeFactor && adj.volumeFactor < 1) result = scaleSession(result, adj.volumeFactor);
-  }
+  if (active.some(a => a.qualityToEasy) && result.kind === "quality") result = easyReplacement(result, paces);
+  if (factor < 1) result = scaleSession(result, factor);
   return { ...result, paces, ...measure(result.steps, paces) };
 }
 
@@ -50,8 +53,8 @@ export function nextSession(plan, date) {
   return null;
 }
 
-export function applyAdjustment(plan, proposal) {
-  const adj = { id: proposal.id, createdAt: new Date().toISOString(), title: proposal.title, reason: proposal.reason, ...proposal.effect };
+export function applyAdjustment(plan, proposal, today = new Date().toISOString().slice(0, 10)) {
+  const adj = { id: proposal.id, createdAt: new Date().toISOString(), createdOn: today, title: proposal.title, reason: proposal.reason, ...proposal.effect };
   return { ...plan, adjustments: [...(plan.adjustments ?? []), adj], version: (plan.version ?? 1) + 1 };
 }
 
@@ -62,18 +65,23 @@ function avgPace(entry) {
 // Interpreta il feedback recente e produce al più una proposta (mai automatica,
 // salvo la sospensione per dolore). Mai km recuperati.
 export function proposeFromFeedback({ plan, feedback, today, dismissed = [] }) {
-  const recent = (feedback ?? []).filter(f => f.date >= addDays(today, -14) && f.planId === plan.id);
+  if (today > plan.raceDate) return [];
+  // Un riscontro già "usato" da un adattamento accettato non ne genera un altro.
+  const lastOn = (plan.adjustments ?? []).map(a => a.createdOn).filter(Boolean).sort().at(-1) ?? "";
+  const recent = (feedback ?? []).filter(f => f.date >= addDays(today, -14) && f.date > lastOn && f.planId === plan.id);
   const latest = recent[0];
   const from = addDays(today, 1), to = addDays(today, 7);
   const make = (kind, title, reason, effect) => ({ id: `${kind}:${latest?.date ?? today}`, kind, title, reason, effect });
   const out = [];
   if (!latest) return out;
+  const reduceActive = (plan.adjustments ?? []).some(a => a.volumeFactor && a.volumeFactor < 1 && (a.toDate == null || a.toDate >= from));
+  const shiftNow = paceShiftFor(plan, from);
   if (latest.pain) {
     out.push({ id: `pause:${latest.date}`, kind: "pause", title: "Sospendi il piano", reason: "Hai segnalato dolore o sintomi preoccupanti: non proseguire con la progressione e chiedi una valutazione professionale.", effect: null });
     return out;
   }
   const expected = EXPECTED_RPE[latest.kind] ?? 5;
-  if (latest.fatigue || (latest.rpe != null && latest.rpe >= expected + 3)) {
+  if (!reduceActive && (latest.fatigue || (latest.rpe != null && latest.rpe >= expected + 3))) {
     out.push(make("reduce", "Alleggerisci i prossimi 7 giorni",
       `${latest.fatigue ? "Hai segnalato fatica insolita" : `RPE ${latest.rpe} su una seduta prevista a ~${expected}`}: riduco i volumi del 15% e sostituisco la qualità con corsa lenta, senza recuperare nulla.`,
       { fromDate: from, toDate: to, volumeFactor: 0.85, qualityToEasy: true }));
@@ -85,24 +93,24 @@ export function proposeFromFeedback({ plan, feedback, today, dismissed = [] }) {
       const rpes = checked.map(f => f.rpe).filter(r => r != null);
       const high = rpes.length === 2 && checked.every((f, i) => f.rpe >= (EXPECTED_RPE[f.kind] ?? 5) + 1);
       const low = rpes.length === 2 && checked.every((f, i) => f.rpe <= (EXPECTED_RPE[f.kind] ?? 5) - 1);
-      if (gaps.every(g => g > 1.05) && high) {
+      if (gaps.every(g => g > 1.05) && high && shiftNow + 10 <= MAX_SHIFT) {
         out.push(make("pace_down", "Rallenta i ritmi di 10\"/km",
           "Nelle ultime due sedute di qualità hai corso più piano del previsto e con sforzo elevato: i ritmi attuali sembrano troppo ambiziosi. Propongo +10\"/km su tutti i ritmi dei prossimi allenamenti.",
           { fromDate: from, toDate: null, paceShiftSec: 10 }));
-      } else if (gaps.every(g => g < 0.97) && low) {
+      } else if (gaps.every(g => g < 0.97) && low && shiftNow - 5 >= -MAX_SHIFT) {
         out.push(make("pace_up", "Valuta di alzare i ritmi",
           "Nelle ultime due sedute sei andato più veloce del previsto con sforzo basso. Prima di cambiare l'obiettivo, conferma con una gara o un test; se vuoi, anticipo i ritmi di 5\"/km.",
           { fromDate: from, toDate: null, paceShiftSec: -5 }));
       }
     }
   }
-  if (!out.length && latest.rpe != null && latest.rpe >= expected + 2) {
+  if (!out.length && !reduceActive && latest.rpe != null && latest.rpe >= expected + 2) {
     out.push(make("reduce_light", "Riduci leggermente i prossimi 7 giorni",
       `Sforzo percepito (${latest.rpe}) sopra l'atteso (~${expected}): riduco i volumi del 10% per una settimana.`,
       { fromDate: from, toDate: to, volumeFactor: 0.9 }));
   }
   const skipped = recent.filter(f => f.completion === "skipped" && f.kind !== "extra").length;
-  if (!out.length && skipped >= 2) {
+  if (!out.length && !reduceActive && skipped >= 2) {
     out.push(make("skips", "Sedute saltate: alleggerisci",
       `${skipped} sedute saltate negli ultimi 14 giorni. Non le recupero: riduco del 10% la prossima settimana per rientrare con calma.`,
       { fromDate: from, toDate: to, volumeFactor: 0.9 }));
@@ -129,6 +137,7 @@ export function proposeFromWeek({ plan, workouts, today, dismissed = [] }) {
   if (adh.planned <= 0 || adh.ratio >= 0.7) return [];
   const id = `week-low:${prev + 1}`;
   if (dismissed.includes(id) || (plan.adjustments ?? []).some(a => a.id === id)) return [];
+  if ((plan.adjustments ?? []).some(a => a.volumeFactor && a.volumeFactor < 1 && (a.toDate == null || a.toDate >= today))) return [];
   return [{ id, kind: "week-low", title: `Settimana ${prev + 1}: aderenza bassa`,
     reason: `Hai registrato ${adh.done} km su ${adh.planned} previsti. Non li recupero: riduco del 15% i prossimi 7 giorni per rientrare gradualmente.`,
     effect: { fromDate: addDays(today, 0), toDate: addDays(today, 6), volumeFactor: 0.85 } }];
