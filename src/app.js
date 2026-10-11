@@ -72,7 +72,41 @@ function renderPlan(plan) {
     <summary><span class="week-num">W${String(week.week).padStart(2,"0")}</span><span><span class="week-title">${esc(week.recovery ? "Settimana di recupero" : "Settimana " + week.week)}</span><span class="week-sub"> · ${esc(week.guidance)}</span></span><span class="phase">${esc(labels[week.phase] ?? week.phase)}</span><span class="week-km">${week.targetKm.toLocaleString("it-IT")} km</span></summary>
     <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small><div class="prescription-steps">${buildSessionPrescription(s).steps.map(step => `<div class="prescription-step"><span>${esc(step.title)} · ${step.distanceKm.toLocaleString("it-IT")} km</span><small>${esc(step.effort)} — ${esc(step.instruction)}</small></div>`).join("")}</div><small class="session-main">${esc(buildSessionPrescription(s).note)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
   </details>`).join("");
-  $("#plan-section").scrollIntoView({behavior:"smooth",block:"start"});
+  renderDailySession();
+}
+function getDailySessionContext(plan, date = today()) {
+  if (!plan?.weeks?.length || !plan.startDate) return null;
+  const startMs = Date.parse(plan.startDate + "T00:00:00Z");
+  const dateMs = Date.parse(date + "T00:00:00Z");
+  if (!Number.isFinite(startMs) || !Number.isFinite(dateMs) || dateMs < startMs) return null;
+  const dayOffset = Math.floor((dateMs - startMs) / 86400000);
+  const weekIndex = Math.floor(dayOffset / 7);
+  const week = plan.weeks[weekIndex];
+  if (!week) return { finished: true, weekIndex };
+  const names = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+  const dayName = names[new Date(date + "T12:00:00").getDay()];
+  const session = week.sessions.find(item => item.day === dayName) ?? null;
+  const nextSession = week.sessions.find(item => names.indexOf(item.day) > names.indexOf(dayName)) ?? null;
+  return { week, weekNumber: week.week, dayName, session, nextSession, date, weekIndex };
+}
+function renderDailySession() {
+  const target = $("#daily-session-content"); if (!target) return;
+  const plan = state.plans[0], ctx = getDailySessionContext(plan);
+  if (!plan || !ctx) { target.innerHTML = '<div class="empty">Genera un piano valido per la data odierna per vedere la seduta prevista.</div>'; return; }
+  if (ctx.finished) { target.innerHTML = '<div class="empty">Il periodo coperto dal piano è terminato. Rigenera il programma dal profilo per continuare.</div>'; return; }
+  if (plan.status === "paused") { target.innerHTML = '<div class="warning">Piano sospeso. Non riprendere automaticamente: chiedi una valutazione professionale se hai dolore o sintomi preoccupanti.</div>'; return; }
+  if (!ctx.session) {
+    const next = ctx.nextSession;
+    target.innerHTML = '<div class="daily-rest"><span class="phase">Recupero</span><h3>Oggi non è prevista una corsa</h3><p>Rispetta il giorno di recupero. Non spostare automaticamente qui una seduta saltata.</p></div>' + (next ? '<div class="daily-next"><strong>Prossima seduta · ' + esc(next.day) + '</strong><p>' + esc(labels[next.type] ?? next.type) + " · " + next.distanceKm.toLocaleString("it-IT") + ' km</p><p>' + esc(next.structure?.mainSet ?? next.note ?? "") + '</p></div>' : ""); return;
+  }
+  const s = ctx.session, prescription = buildSessionPrescription(s);
+  target.innerHTML = '<div class="daily-workout"><div class="daily-workout-meta"><span class="phase">' + esc(labels[ctx.week.phase] ?? ctx.week.phase) + '</span><span>' + esc(ctx.dayName) + " · Settimana " + ctx.weekNumber + '</span></div><h3>' + esc(labels[s.type] ?? s.type) + '</h3><div class="daily-distance">' + s.distanceKm.toLocaleString("it-IT") + ' <span>km previsti</span></div><p>' + esc(s.effort) + (s.note ? " · " + esc(s.note) : "") + '</p><div class="prescription-steps">' + prescription.steps.map(step => '<div class="prescription-step"><span>' + esc(step.title) + " · " + step.distanceKm.toLocaleString("it-IT") + ' km</span><small>' + esc(step.effort) + " — " + esc(step.instruction) + '</small></div>').join("") + '</div><p class="form-note">' + esc(prescription.note) + '</p></div>';
+  const form = $("#daily-session-form"); if (form) form.elements.distanceKm.placeholder = String(s.distanceKm);
+}
+function renderTab(tabId) {
+  for (const id of ["plan-section", "daily-session-section", "review-panel"]) { const section = document.getElementById(id); if (section) section.hidden = id !== tabId; }
+  document.querySelectorAll(".app-tab").forEach(button => { const active = button.dataset.tab === tabId; button.classList.toggle("is-active", active); button.setAttribute("aria-selected", String(active)); });
+  if (tabId === "daily-session-section") renderDailySession();
 }
 function renderHistory() {
   const workouts = [...state.workouts].sort((a,b) => b.date.localeCompare(a.date)).slice(0,8);
@@ -84,6 +118,34 @@ function saveWorkout(input) {
   state.workouts.push(workout); persist(); renderHistory(); return true;
 }
 
+document.querySelectorAll(".app-tab").forEach(button => button.addEventListener("click", () => renderTab(button.dataset.tab)));
+$("#daily-session-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const form = event.currentTarget, data = new FormData(form), message = $("#daily-session-message");
+  try {
+    const runner = state.runners[0], plan = state.plans[0], ctx = getDailySessionContext(plan);
+    if (!runner || !plan || !ctx || !ctx.session) throw new Error("Non c\u0027è una seduta pianificata per oggi da confrontare.");
+    if (plan.status === "paused" || runner.hasConcerningSymptoms) throw new Error("Il piano è sospeso: serve una valutazione appropriata prima di riprendere.");
+    const completion = String(data.get("completion")), distanceText = String(data.get("distanceKm") ?? "").trim(), durationText = String(data.get("durationMinutes") ?? "").trim(), rpeText = String(data.get("rpe") ?? "").trim();
+    const pain = data.get("pain") === "on", fatigue = data.get("fatigue") === "on";
+    if (completion !== "skipped" && !distanceText && !durationText) throw new Error("Inserisci almeno distanza o durata per una seduta svolta.");
+    let workout = null;
+    if (completion !== "skipped") {
+      workout = createWorkout({ date: today(), distanceKm: distanceText ? Number(distanceText) : null, durationSec: durationText ? Number(durationText) * 60 : null, rpe: rpeText ? Number(rpeText) : null, notes: String(data.get("notes") ?? ""), source: "daily-session" });
+      state.workouts.push(workout);
+    }
+    let advice;
+    if (pain) { runner.hasConcerningSymptoms = true; plan.status = "paused"; plan.warnings = [...(plan.warnings ?? []), "Piano sospeso dopo il feedback della seduta odierna per dolore o sintomi preoccupanti."]; advice = "PROPOSTA: sospendere la progressione e chiedere una valutazione professionale appropriata. Non riprendere automaticamente."; }
+    else if (fatigue || Number(rpeText) >= 8) advice = "PROPOSTA: non aumentare il carico; considera una seduta facile o riposo aggiuntivo e rivaluta il recupero prima della prossima qualità. Se la fatica persiste, chiedi consiglio a un professionista.";
+    else if (completion === "skipped") advice = "PROPOSTA: non recuperare i chilometri persi. Riprendi dal prossimo allenamento previsto; se le sedute saltate si accumulano, rivedi carico o calendario.";
+    else if (distanceText && Number(distanceText) < ctx.session.distanceKm * 0.7) advice = "PROPOSTA: seduta molto più corta del previsto. Mantieni il carico attuale o ripeti una settimana simile invece di progredire automaticamente.";
+    else if (rpeText && Number(rpeText) <= 6 && (!distanceText || Number(distanceText) >= ctx.session.distanceKm * 0.85) && completion === "completed") advice = "PROPOSTA: seduta apparentemente ben tollerata. Continua con il piano attuale; un singolo allenamento non basta per aumentare il carico settimanale.";
+    else advice = "PROPOSTA: dati insufficienti per giustificare un aumento. Mantieni il piano e valuta più sedute, recupero e RPE.";
+    state.runners = [runner];
+    state.dailyFeedback = [{ id: "feedback-" + Date.now(), date: today(), planId: plan.id, plannedType: ctx.session.type, plannedKm: ctx.session.distanceKm, completion, actualKm: workout?.distanceKm ?? null, durationSec: workout?.durationSec ?? null, rpe: workout?.rpe ?? null, fatigue, pain, notes: String(data.get("notes") ?? ""), advice }, ...(state.dailyFeedback ?? [])].slice(0,100);
+    persist(); renderHistory(); renderDailySession(); message.textContent = advice; message.hidden = false;
+  } catch (error) { message.textContent = error.message; message.hidden = false; }
+});
 $("#profile-form").addEventListener("submit", event => {
   event.preventDefault();
   const error = $("#profile-error"); error.hidden = true;
@@ -211,4 +273,4 @@ function restoreProfile() {
   form.elements.symptoms.checked = Boolean(runner.hasConcerningSymptoms);
   if (state.plans[0]) renderPlan(state.plans[0]);
 }
-restoreProfile(); renderHistory();
+restoreProfile(); renderHistory(); renderDailySession();
