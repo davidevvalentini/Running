@@ -3,7 +3,7 @@ import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
 import { buildSessionPrescription } from "./domain/prescriptions.js";
-import { getDailySessionContext, suggestDailyAdjustment } from "./domain/daily-session.js";
+import { getDailySessionContext, suggestDailyAdjustment, summarizeDailyFeedback } from "./domain/daily-session.js";
 
 const store = createLocalStore();
 let state = store.read();
@@ -211,11 +211,12 @@ $("#review-form").addEventListener("submit", event => {
       throw new Error("Non c'è ancora una settimana completa del piano da valutare. La revisione sarà disponibile dopo i primi 7 giorni.");
     }
     const recent = state.workouts.filter(w => w.date >= completedWeek.startDate && w.date <= completedWeek.endDate);
+    const dailySummary = summarizeDailyFeedback(state.dailyFeedback ?? [], completedWeek.startDate, completedWeek.endDate);
     const review = reviewTrainingWeek({
       runner, plannedKm: completedWeek.week.targetKm, completedWorkouts: recent,
-      missedSessions: Number(data.get("missedSessions")),
-      painReported: data.get("pain") === "on",
-      unusualFatigue: data.get("fatigue") === "on"
+      missedSessions: Math.max(Number(data.get("missedSessions")), dailySummary.skippedSessions),
+      painReported: data.get("pain") === "on" || dailySummary.painReported,
+      unusualFatigue: data.get("fatigue") === "on" || dailySummary.unusualFatigue
     });
     const adjustment = applyAdjustment(runner.weeklyKm, review);
     const entry = {
