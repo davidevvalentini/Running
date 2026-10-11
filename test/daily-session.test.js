@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getDailySessionContext, suggestDailyAdjustment } from "../src/domain/daily-session.js";
+import { getDailySessionContext, suggestDailyAdjustment, summarizeDailyFeedback } from "../src/domain/daily-session.js";
 
 const plan = {
   startDate: "2026-10-12",
@@ -70,7 +70,6 @@ test("rejects malformed feedback", () => {
 });
 
 test("summarizes daily feedback within a weekly review range", async () => {
-  const { summarizeDailyFeedback } = await import("../src/domain/daily-session.js");
   const result = summarizeDailyFeedback([
     { date: "2026-10-05", completion: "skipped", rpe: null },
     { date: "2026-10-06", completion: "completed", rpe: 8, fatigue: false },
@@ -80,7 +79,6 @@ test("summarizes daily feedback within a weekly review range", async () => {
 });
 
 test("rejects invalid daily feedback review ranges", async () => {
-  const { summarizeDailyFeedback } = await import("../src/domain/daily-session.js");
   assert.throws(() => summarizeDailyFeedback({}, "2026-10-01", "2026-10-07"), /array/);
   assert.throws(() => summarizeDailyFeedback([], "2026-10-08", "2026-10-01"), /date range/);
 });
