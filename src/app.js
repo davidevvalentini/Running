@@ -9,7 +9,7 @@ const store = createLocalStore();
 let state = store.read();
 let currentPreview = null;
 const $ = selector => document.querySelector(selector);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
 const labels = { beginner:"Principiante", intermediate:"Intermedio", advanced:"Evoluto", base:"Base", build:"Sviluppo", specific:"Specificità", taper:"Taper", run_walk:"Corsa/camminata", easy:"Corsa facile", long:"Lungo", threshold:"Soglia controllata", intervals:"Intervalli controllati", marathon_pace:"Ritmo maratona (solo se validato)" };
 
