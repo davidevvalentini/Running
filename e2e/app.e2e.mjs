@@ -116,7 +116,7 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   await page.fill("[name=raceDate]", "2027-01-30"); await page.fill("[name=goal]", "4:00");
   await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
   await page.click(".tab[data-tab=piano]");
-  const labels = await page.locator("details.week").last().evaluate(el => { el.open = true; return [...el.querySelectorAll(".day .dn")].map(d => d.innerText.split("\n")[0]); });
+  const labels = await page.locator("details.week").last().evaluate(el => { el.open = true; return [...el.querySelectorAll(".day .dn")].map(d => d.textContent.trim().slice(0, 2)); });
   assert.deepEqual(labels, ["DO", "LU", "MA", "ME", "GI", "VE", "SA"]); ok("gara di sabato: etichette giorni corrette");
   await ctx.close();
 }
