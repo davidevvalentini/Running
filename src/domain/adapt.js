@@ -7,7 +7,7 @@ const DAY = 86400000;
 const diffDays = (a, b) => Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY);
 
 // RPE attesa per tipo di seduta (indicativa, per leggere il feedback).
-export const EXPECTED_RPE = { easy: 4, quality: 7, long: 5, race: 8 };
+export const EXPECTED_RPE = { easy: 4, quality: 7, long: 5, race: 8, extra: 4 };
 
 const inRange = (adj, date) => date >= adj.fromDate && (adj.toDate == null || date <= adj.toDate);
 
@@ -101,7 +101,7 @@ export function proposeFromFeedback({ plan, feedback, today, dismissed = [] }) {
       `Sforzo percepito (${latest.rpe}) sopra l'atteso (~${expected}): riduco i volumi del 10% per una settimana.`,
       { fromDate: from, toDate: to, volumeFactor: 0.9 }));
   }
-  const skipped = recent.filter(f => f.completion === "skipped").length;
+  const skipped = recent.filter(f => f.completion === "skipped" && f.kind !== "extra").length;
   if (!out.length && skipped >= 2) {
     out.push(make("skips", "Sedute saltate: alleggerisci",
       `${skipped} sedute saltate negli ultimi 14 giorni. Non le recupero: riduco del 10% la prossima settimana per rientrare con calma.`,
