@@ -48,6 +48,44 @@ const REF = [
   { z2: 6, cl: 8, race: true, name: "Settimana di gara", phase: "taper", text: "Corri pochissimo, rilassati e dormi. Domenica è la tua festa: parti prudente e goditela." }
 ];
 
+// Mezza maratona: riferimento 2h00, 12 settimane.
+const REF_HALF = [
+  { z2: 6, cl: 6, q: "M6x800", lq: 10, name: "Attivazione", phase: "base", text: "Si parte con volumi contenuti: ripetute medie il mercoledì e un lungo facile la domenica." },
+  { z2: 6, cl: 8, q: "B10x400", lq: 12, name: "Ripetute brevi", phase: "base", text: "Le ripetute da 400 m svegliano le gambe. Il lungo sale a 12 km." },
+  { z2: 8, cl: 8, q: "M7x1k", lq: 14, name: "Costruzione", phase: "base", text: "Ripetute da 1 km: stesso ritmo dalla prima all'ultima." },
+  { z2: 6, cl: 6, q: "CM5", lq: 10, name: "Scarico", phase: "base", recovery: true, text: "Settimana di scarico: meno km, più sonno. Corri leggero." },
+  { z2: 8, cl: 8, q: "M6x1k", lq: 14, tail: ["RG", 3], name: "Primo ritmo gara", phase: "build", text: "Domenica 3 km a ritmo gara in fondo al lungo: impara a riconoscere il passo." },
+  { z2: 8, cl: 10, q: "LL3", lq: 14, tail: ["RG", 4], name: "Ripetute lunghe", phase: "build", text: "Ripetute da 2 km per la resistenza alla fatica; lungo con 4 km a ritmo gara." },
+  { z2: 8, cl: 10, q: "CM8", lq: 16, tail: ["CM", 3], name: "Settimana chiave", phase: "build", text: "Il carico è alto: se sei stanco accorcia il lungo di 2 km." },
+  { z2: 6, cl: 8, q: "CV3", lq: 12, name: "Recupero attivo", phase: "build", recovery: true, text: "Rigenera: la prossima settimana c'è il lavoro più specifico." },
+  { z2: 8, cl: 10, q: "LL4", lq: 14, tail: ["RG", 5], name: "Picco specifico", phase: "specific", text: "La settimana più impegnativa: 4×2 km e lungo con 5 km a ritmo gara." },
+  { z2: 8, cl: 8, q: "M6x1k", lq: 12, tail: ["RG", 4], name: "Ultimo carico", phase: "specific", text: "Ultimo lavoro di qualità prima del tapering. Mantieni il controllo." },
+  { z2: 6, cl: 6, q: "CV3", lq: 10, name: "Tapering", phase: "taper", text: "I km calano: sentirsi strani è normale, stai assorbendo il lavoro." },
+  { z2: 5, cl: 6, race: true, name: "Settimana di gara", phase: "taper", text: "Poco, rilassato, ben dormito. Domenica parti prudente e chiudi forte." }
+];
+// 10 km: riferimento 55'00", 10 settimane.
+const REF_10K = [
+  { z2: 5, cl: 5, q: "B10x400", lq: 8, name: "Attivazione", phase: "base", text: "Prime ripetute corte e un lungo facile: costruisci la base." },
+  { z2: 6, cl: 6, q: "M6x800", lq: 10, name: "Ripetute medie", phase: "base", text: "800 m tutte allo stesso ritmo, senza partire troppo forte." },
+  { z2: 6, cl: 8, q: "M7x1k", lq: 11, name: "Costruzione", phase: "base", text: "Ripetute da 1 km: il lavoro che più somiglia alla gara." },
+  { z2: 5, cl: 5, q: "CM5", lq: 8, name: "Scarico", phase: "base", recovery: true, text: "Scarico: volume giù, gambe fresche per il blocco successivo." },
+  { z2: 6, cl: 8, q: "M6x1k", lq: 12, name: "Specifico", phase: "build", text: "Si sale di intensità: ripetute da 1 km e lungo più lungo." },
+  { z2: 8, cl: 8, q: "LL3", lq: 13, name: "Picco", phase: "build", text: "La settimana più carica: 3×2 km a ritmo sostenuto." },
+  { z2: 6, cl: 6, q: "CV4", lq: 10, name: "Scarico attivo", phase: "build", recovery: true, text: "Alleggerisci e recupera prima dell'ultimo blocco." },
+  { z2: 6, cl: 8, q: "M6x1k", lq: 12, name: "Ultimo blocco", phase: "specific", text: "Ultimo lavoro di qualità: mantieni la regolarità." },
+  { z2: 5, cl: 6, q: "CV3", lq: 8, name: "Tapering", phase: "taper", text: "Pochi km, gambe fresche. Niente test: fidati del lavoro fatto." },
+  { z2: 4, cl: 5, race: true, name: "Settimana di gara", phase: "taper", text: "Corri poco, dormi molto. Domenica è il tuo giorno." }
+];
+
+// Parametri per distanza di gara.
+export const DISTANCES = {
+  marathon: { key: "marathon", label: "Maratona", km: 42.195, refSec: 4 * 3600, tpl: REF, minGoal: 2.5 * 3600, maxGoal: 6 * 3600, longCapKm: 32, extraWeeksBelow: 3.5 * 3600 },
+  half: { key: "half", label: "Mezza maratona", km: 21.0975, refSec: 2 * 3600, tpl: REF_HALF, minGoal: 4200, maxGoal: 3 * 3600, longCapKm: 22 },
+  "10k": { key: "10k", label: "10 km", km: 10, refSec: 3300, tpl: REF_10K, minGoal: 1800, maxGoal: 5400, longCapKm: 16 }
+};
+const RIEGEL = 1.06;
+export const equivalentSec = (sec, fromKm, toKm) => sec * Math.pow(toKm / fromKm, RIEGEL);
+
 const KIND_BY_Q = { reps: "quality", cont: "quality" };
 
 function qualitySession(key) {
@@ -61,8 +99,8 @@ function qualitySession(key) {
 
 function scaleKm(km, f, min = 4) { return Math.max(min, Math.round(km * f)); }
 
-function longSession(spec, f, paces, raceTail) {
-  const longCap = Math.min(32, Math.floor(10800 / paces.LQ));
+function longSession(spec, f, paces, cfg) {
+  const longCap = cfg.key === "marathon" ? Math.min(cfg.longCapKm, Math.floor(10800 / paces.LQ)) : cfg.longCapKm;
   let lq = scaleKm(spec.lq, f, 8);
   let tail = spec.tail ? [spec.tail[0], scaleKm(spec.tail[1], f, 2)] : null;
   let cd = spec.cd ? scaleKm(spec.cd, f, 1) : 0;
@@ -76,26 +114,26 @@ function longSession(spec, f, paces, raceTail) {
   return { kind: "long", title, steps, rpe: tail ? "4-6" : "4-5" };
 }
 
-function raceSession() {
-  return { kind: "race", title: "Maratona", steps: [run("GARA", 42.195)], rpe: "—" };
+function raceSession(cfg) {
+  return { kind: "race", title: cfg.label, steps: [run("GARA", cfg.km)], rpe: "—" };
 }
 
 function easySession(code, km, title) { return { kind: "easy", title, steps: [run(code, km)], rpe: code === "Z2-CLR" ? "3-4" : "4" }; }
 
-function weekDays(spec, f, days, paces) {
+function weekDays(spec, f, days, paces, cfg) {
   const out = Array(7).fill(null);
   if (spec.race) {
     out[SLOTS.easy] = easySession("CL", scaleKm(spec.cl, f, 5), "Corsa lenta");
     out[SLOTS.quality] = easySession("Z2-CLR", scaleKm(spec.z2, f, 4), "Corsa rigenerante");
     out[SLOTS.mid] = easySession("Z2-CLR", scaleKm(spec.z2, f, 4), "Corsa rigenerante");
-    out[SLOTS.long] = raceSession();
+    out[SLOTS.long] = raceSession(cfg);
     if (days === 3) out[SLOTS.easy] = null;
     return out;
   }
   const z2 = scaleKm(spec.z2, f);
   const cl = scaleKm(spec.cl, f);
   out[SLOTS.quality] = qualitySession(spec.q);
-  out[SLOTS.long] = longSession(spec, f, paces);
+  out[SLOTS.long] = longSession(spec, f, paces, cfg);
   if (days === 3) {
     out[SLOTS.mid] = easySession("CL", cl + Math.round(z2 * 0.5), "Corsa lenta");
   } else {
@@ -107,27 +145,27 @@ function weekDays(spec, f, days, paces) {
   return out;
 }
 
-export function volumeFactor(goalSec) {
-  return clamp(1 + (4 * 3600 - goalSec) / (4 * 3600), 0.75, 1.3);
+export function volumeFactor(goalSec, refSec = 4 * 3600) {
+  return clamp(1 + (refSec - goalSec) / refSec, 0.75, 1.3);
 }
 
-// Prestazioni equivalenti (Riegel, esponente 1,06) e capacità richieste.
-export function requiredAbilities(goalSec) {
-  const at = d => goalSec * Math.pow(d / 42.195, 1.06);
+// Prestazioni equivalenti (Riegel) e capacità richieste per l'obiettivo.
+export function requiredAbilities(goalSec, goalKm = 42.195) {
+  const at = d => equivalentSec(goalSec, goalKm, d);
   const t5 = at(5), t10 = at(10), half = at(21.0975);
   const vma = (5 / t5) * 3600 * 1.06;
   return { t5, t10, half, vma: round1(vma) };
 }
 
-export function assessFeasibility(profile, week1) {
-  const req = requiredAbilities(profile.goalTimeSec);
+export function assessFeasibility(profile, week1, goalKm = 42.195) {
+  const req = requiredAbilities(profile.goalTimeSec, goalKm);
   const notes = [];
   let score = 0, known = 0;
   if (profile.recentRaceDistanceKm && profile.recentRaceTimeSec) {
-    const predicted = profile.recentRaceTimeSec * Math.pow(42.195 / profile.recentRaceDistanceKm, 1.06);
+    const predicted = equivalentSec(profile.recentRaceTimeSec, profile.recentRaceDistanceKm, goalKm);
     const ratio = profile.goalTimeSec / predicted;
     known++;
-    if (ratio >= 1.02) { score += 2; notes.push("La gara recente proietta un tempo maratona migliore dell'obiettivo."); }
+    if (ratio >= 1.02) { score += 2; notes.push("La gara recente proietta un tempo migliore dell'obiettivo."); }
     else if (ratio >= 0.95) { score += 1; notes.push("L'obiettivo è leggermente più ambizioso di quanto proietti la gara recente: realistico con una buona preparazione."); }
     else notes.push("L'obiettivo è molto più veloce di quanto proietti la gara recente: valuta un tempo meno ambizioso.");
   } else notes.push("Nessuna gara recente: aggiungila al profilo per una valutazione più affidabile.");
@@ -147,7 +185,9 @@ export function assessFeasibility(profile, week1) {
 export function validateProfile(p) {
   const errors = [];
   if (!p || typeof p !== "object") return { ok: false, errors: ["Profilo non valido."] };
-  if (!Number.isFinite(p.goalTimeSec) || p.goalTimeSec < 2.5 * 3600 || p.goalTimeSec > 6 * 3600) errors.push("Il tempo obiettivo deve essere tra 2h30 e 6h00.");
+  const cfg = DISTANCES[p.distance ?? "marathon"];
+  if (!cfg) errors.push("Distanza di gara non supportata.");
+  else if (!Number.isFinite(p.goalTimeSec) || p.goalTimeSec < cfg.minGoal || p.goalTimeSec > cfg.maxGoal) errors.push(`Il tempo obiettivo per ${cfg.label} deve essere tra ${fmtLimit(cfg.minGoal)} e ${fmtLimit(cfg.maxGoal)}.`);
   if (!isValidISODate(p.raceDate)) errors.push("Data gara non valida.");
   if (!Number.isInteger(p.daysAvailable) || p.daysAvailable < 3 || p.daysAvailable > 6) errors.push("Scegli da 3 a 6 giorni di corsa a settimana.");
   if (!Number.isFinite(p.weeklyKm) || p.weeklyKm < 0 || p.weeklyKm > 300) errors.push("I km settimanali devono essere tra 0 e 300.");
@@ -155,13 +195,16 @@ export function validateProfile(p) {
   const hasD = p.recentRaceDistanceKm != null, hasT = p.recentRaceTimeSec != null;
   if (hasD !== hasT) errors.push("Indica distanza e tempo della gara recente insieme.");
   if (hasD && ![5, 10, 21.0975].includes(p.recentRaceDistanceKm)) errors.push("La gara recente deve essere 5, 10 o mezza maratona.");
+  if (p.maxHr != null && (!Number.isFinite(p.maxHr) || p.maxHr < 120 || p.maxHr > 230)) errors.push("La frequenza massima deve essere tra 120 e 230 bpm.");
   return { ok: errors.length === 0, errors };
 }
+const fmtLimit = sec => (sec >= 3600 ? `${Math.floor(sec / 3600)}h${String(Math.round((sec % 3600) / 60)).padStart(2, "0")}` : `${Math.round(sec / 60)}'`);
 
 export function generatePlan(profile, options = {}) {
   const v = validateProfile(profile);
   if (!v.ok) throw new TypeError(v.errors.join(" "));
   if (profile.hasConcerningSymptoms) throw new Error("Generazione sospesa: dolore o sintomi insoliti vanno valutati prima di iniziare.");
+  const cfg = DISTANCES[profile.distance ?? "marathon"];
   const today = options.today ?? new Date().toISOString().slice(0, 10);
   if (!isValidISODate(today)) throw new RangeError("Data odierna non valida.");
   const daysToRace = Math.round((Date.parse(`${profile.raceDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY);
@@ -169,30 +212,32 @@ export function generatePlan(profile, options = {}) {
   const weeksAvail = Math.floor((daysToRace + 1) / 7);
   if (weeksAvail < 4) throw new RangeError("Servono almeno 4 settimane piene prima della gara.");
 
-  const racePace = profile.goalTimeSec / 42.195;
-  const paces = buildPaces(racePace);
-  const f = volumeFactor(profile.goalTimeSec);
-  const fullWeeks = profile.goalTimeSec < 3.5 * 3600 ? 18 : 16;
+  // Le zone derivano dal ritmo equivalente sulla maratona; RG/gara dal ritmo obiettivo.
+  const goalPace = profile.goalTimeSec / cfg.km;
+  const basePace = equivalentSec(profile.goalTimeSec, cfg.km, 42.195) / 42.195;
+  const paces = buildPaces(basePace, 0, goalPace);
+  const f = volumeFactor(profile.goalTimeSec, cfg.refSec);
   const tplWeeks = [];
-  if (fullWeeks === 18) {
+  if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
     // Due settimane di ingresso, più leggere, prima del blocco standard.
-    tplWeeks.push({ ...REF[0], name: "Ingresso", lq: 10, z2: 6, cl: 6, text: "Due settimane di ingresso per portare la base al livello d'inizio piano. Corri facile e regolare." });
-    tplWeeks.push({ ...REF[0], name: "Ingresso progressivo", lq: 12, z2: 8, cl: 8, q: "B10x400", text: "Seconda settimana di ingresso: prime ripetute corte, ancora senza spingere." });
+    tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso", lq: 10, z2: 6, cl: 6, text: "Due settimane di ingresso per portare la base al livello d'inizio piano. Corri facile e regolare." });
+    tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso progressivo", lq: 12, z2: 8, cl: 8, q: "B10x400", text: "Seconda settimana di ingresso: prime ripetute corte, ancora senza spingere." });
   }
-  tplWeeks.push(...REF);
+  tplWeeks.push(...cfg.tpl);
   const n = Math.min(tplWeeks.length, weeksAvail);
   const used = tplWeeks.slice(tplWeeks.length - n);
   const startDate = addDays(profile.raceDate, -(n * 7 - 1));
   const warnings = [];
   if (n < tplWeeks.length) warnings.push(`Mancano ${weeksAvail} settimane: il piano completo ne prevede ${tplWeeks.length}. Parti dalla fase ${used[0].phase === "build" ? "di sviluppo" : used[0].phase === "specific" ? "specifica" : "finale"} del programma, a condizione di avere già una buona base.`);
-  if (n < 10) warnings.push("Con meno di 10 settimane la preparazione completa non è realistica: considera una gara più avanti.");
+  const minWeeks = cfg.key === "marathon" ? 10 : cfg.key === "half" ? 8 : 6;
+  if (n < minWeeks) warnings.push(`Con meno di ${minWeeks} settimane la preparazione completa non è realistica: considera una gara più avanti.`);
   if (profile.daysAvailable === 3) warnings.push("Con 3 giorni a settimana il piano è compresso: la corsa rigenerante del martedì è unita alla corsa lenta del venerdì.");
 
   const weeks = used.map((spec, i) => {
-    const days = weekDays(spec, f, profile.daysAvailable, paces).map((session, d) => ({
+    const days = weekDays(spec, f, profile.daysAvailable, paces, cfg).map((session, d) => ({
       date: addDays(startDate, i * 7 + d), dayIndex: d, session: session ? { ...session, id: `w${i + 1}d${d}` } : null
     }));
-    const km = round1(days.reduce((s, day) => s + (day.session ? measure(day.session.steps, { ...paces }).km : 0), 0));
+    const km = round1(days.reduce((s, day) => s + (day.session ? measure(day.session.steps, paces).km : 0), 0));
     return { week: i + 1, phase: spec.phase, recovery: Boolean(spec.recovery), name: spec.name, text: spec.text, days, km };
   });
 
@@ -200,15 +245,16 @@ export function generatePlan(profile, options = {}) {
   const week1Info = { km: week1.km, longKm: longOfWeek1 ? measure(longOfWeek1.steps, paces).km : 0 };
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
-    startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: racePace,
+    distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,
+    startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: basePace, goalPaceSec: goalPace,
     daysPerWeek: profile.daysAvailable, totalWeeks: n, status: "active", weeks, warnings,
-    adjustments: [], feasibility: assessFeasibility(profile, week1Info),
+    adjustments: [], feasibility: assessFeasibility(profile, week1Info, cfg.km),
     disclaimer: "Piano indicativo, non consulto medico né coaching validato clinicamente. Interrompi in caso di dolore o sintomi insoliti. L'esito in gara non è garantito."
   };
 }
 
 export function planSummary(plan) {
-  const paces = buildPaces(plan.racePaceSec);
+  const paces = buildPaces(plan.racePaceSec, 0, plan.goalPaceSec ?? plan.racePaceSec);
   const peak = plan.weeks.reduce((a, w) => (w.km > a.km ? w : a), plan.weeks[0]);
   const total = round1(plan.weeks.reduce((s, w) => s + w.km, 0));
   return { totalKm: total, avgKm: round1(total / plan.weeks.length), peakWeek: peak.week, peakKm: peak.km, paces };

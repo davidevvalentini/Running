@@ -125,3 +125,6 @@ details.fold>.fold-body{margin-top:12px}
   .wrap{padding-bottom:92px}
   .week>summary .ws{display:none}
 }
+
+.actions-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.actions-row select{width:auto;padding:7px 10px;font-size:13px}

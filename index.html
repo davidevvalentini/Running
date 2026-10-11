@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d1117">
-  <meta name="description" content="Piano di allenamento per la maratona, seduta del giorno e adattamenti.">
-  <title>Running — Piano maratona</title>
+  <meta name="description" content="Piani di allenamento per maratona, mezza e 10 km: seduta del giorno e adattamenti.">
+  <title>Running — Piani di corsa</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <header class="top" id="top">
-    <a class="brand" href="#oggi"><span class="mark">R</span><span>running<span class="muted">/maratona</span></span></a>
+    <a class="brand" href="#oggi"><span class="mark">R</span><span>running<span class="muted">/piani</span></span></a>
     <span class="chip" id="countdown" hidden></span>
   </header>
   <nav class="tabs" aria-label="Sezioni">
@@ -47,16 +47,19 @@
     <section id="view-profilo" class="view" hidden>
       <div class="card">
         <h2>Il tuo obiettivo</h2>
-        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi e lunghi si adattano al tempo obiettivo.</p>
+        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi e lunghi si adattano al tempo obiettivo. La città serve solo a mostrare le previsioni (servizio Open-Meteo).</p>
         <form id="profile-form" class="form">
           <div class="grid2">
-            <label>Data della maratona<input type="date" name="raceDate" required></label>
-            <label>Tempo obiettivo (h:mm)<input type="text" name="goal" inputmode="numeric" placeholder="es. 4:00" required pattern="\d:[0-5]\d(:[0-5]\d)?"></label>
+            <label>Gara<select name="distance"><option value="marathon">Maratona</option><option value="half">Mezza maratona</option><option value="10k">10 km</option></select></label>
+            <label>Data della gara<input type="date" name="raceDate" required></label>
+            <label><span id="goal-label">Tempo obiettivo (h:mm)</span><input type="text" name="goal" inputmode="numeric" placeholder="es. 4:00" required></label>
             <label>Giorni di corsa a settimana<select name="daysAvailable"><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label>
             <label>Km in una settimana tipica<input type="number" name="weeklyKm" min="0" max="300" step="0.5" value="30" required></label>
             <label>Lungo più recente (km)<input type="number" name="longestRunKm" min="0" max="100" step="0.5" value="16" required></label>
             <label>Gara recente (facoltativa)<select name="recentRaceDistance"><option value="">Nessuna</option><option value="5">5 km</option><option value="10">10 km</option><option value="21.0975">Mezza maratona</option></select></label>
             <label>Tempo gara recente<input type="text" name="recentRaceTime" inputmode="numeric" placeholder="es. 52:30 o 1:55:00"></label>
+            <label>FC massima (facoltativa)<input type="number" name="maxHr" min="120" max="230" step="1" placeholder="es. 188"></label>
+            <label>Città per il meteo (facoltativa)<input type="text" name="city" maxlength="60" placeholder="es. Milano"></label>
           </div>
           <label class="check"><input type="checkbox" name="symptoms"><span>Ho dolore o sintomi insoliti che potrebbero influire sulla corsa</span></label>
           <button class="btn" type="submit">Genera il piano</button>

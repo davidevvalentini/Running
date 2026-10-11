@@ -18,12 +18,14 @@ export const PACE_NAMES = Object.freeze({
 const round1 = n => Math.round(n * 10) / 10;
 const roundTo5 = s => Math.round(s / 5) * 5;
 
-export function buildPaces(racePaceSec, shiftSec = 0) {
-  if (!Number.isFinite(racePaceSec) || racePaceSec < 150 || racePaceSec > 900) throw new RangeError("Ritmo gara fuori intervallo.");
-  const base = racePaceSec + shiftSec;
+// basePace = ritmo equivalente sulla maratona (da cui derivano tutte le zone);
+// goalPace = ritmo della gara scelta (uguale a basePace per la maratona).
+export function buildPaces(basePace, shiftSec = 0, goalPace = basePace) {
+  if (!Number.isFinite(basePace) || basePace < 150 || basePace > 900) throw new RangeError("Ritmo gara fuori intervallo.");
+  const base = basePace + shiftSec, goal = goalPace + shiftSec;
   const paces = {};
-  for (const [code, offset] of Object.entries(PACE_OFFSETS)) paces[code] = code === "RG" ? roundTo5(base) : roundTo5(base + offset);
-  paces.GARA = Math.round(base);
+  for (const [code, offset] of Object.entries(PACE_OFFSETS)) paces[code] = code === "RG" ? roundTo5(goal) : roundTo5(base + offset);
+  paces.GARA = Math.round(goal);
   return paces;
 }
 
@@ -35,5 +37,6 @@ export function fmtDuration(sec) {
 export const fmtKm = km => String(round1(km)).replace(".", ",");
 export function fmtGoal(sec) {
   const total = Math.round(sec), h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  if (!h) return `${m}'${String(s).padStart(2, "0")}"`;
   return `${h}h ${String(m).padStart(2, "0")}'${s ? ` ${String(s).padStart(2, "0")}"` : ""}`;
 }
