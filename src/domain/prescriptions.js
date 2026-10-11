@@ -23,15 +23,17 @@ export function buildSessionPrescription(session) {
   let instruction = s.mainSet || "Corri a intensità facile e controllata.";
   let effort = session.effort || "RPE 3–4/10";
   let title = "Parte centrale";
+  const set = s.setDetails;
+  const structuredQuality = (session.type === "intervals" && set?.kind === "intervals") ||
+    (session.type === "threshold" && set?.kind === "threshold");
+
   if (session.type === "intervals") {
-    const set = s.setDetails;
     title = set?.kind === "intervals"
       ? `Ripetute controllate · ${set.repetitions} × ${Math.round(set.workDistanceKm * 1000)} m / ${Math.round(set.recoveryDistanceKm * 1000)} m facile`
       : "Ripetute controllate";
     effort = "RPE 7/10, mai massimale";
     instruction = instruction + " Recupero in corsa facile: devi ripartire con controllo, non affannato.";
   } else if (session.type === "threshold") {
-    const set = s.setDetails;
     title = set?.kind === "threshold"
       ? `Soglia controllata · ${set.repetitions} × ${Math.round(set.workDistanceKm * 1000)} m / ${Math.round(set.recoveryDistanceKm * 1000)} m facile`
       : "Soglia controllata";
@@ -48,7 +50,32 @@ export function buildSessionPrescription(session) {
     title = "Blocchi corsa/camminata";
     effort = "RPE 2–4/10";
   }
-  add("main", title, mainKm, instruction, effort);
+
+  if (structuredQuality) {
+    const workKm = round1(set.repetitions * set.workDistanceKm);
+    const recoveryKm = round1(set.recoveryCount * set.recoveryDistanceKm);
+    const remainingKm = round1(Math.max(0, mainKm - workKm - recoveryKm));
+    let firstWorkInstruction = instruction;
+    for (let rep = 1; rep <= set.repetitions; rep++) {
+      add("work", `Ripetuta ${rep}/${set.repetitions} · ${Math.round(set.workDistanceKm * 1000)} m`,
+        set.workDistanceKm,
+        firstWorkInstruction + " Mantieni il controllo e non accelerare fino allo sprint.",
+        effort);
+      firstWorkInstruction = "Ripeti allo stesso sforzo della prova precedente; se perdi controllo, rallenta o termina la parte intensa.";
+      if (rep <= set.recoveryCount) {
+        add("recovery", `Recupero ${rep}/${set.recoveryCount} · ${Math.round(set.recoveryDistanceKm * 1000)} m facile`,
+          set.recoveryDistanceKm,
+          `Recupera in ${set.recoveryIntensity ?? "corsa facile"}; riparti solo se hai recuperato il controllo del respiro.`,
+          "RPE 2–3/10");
+      }
+    }
+    add("easy", "Corsa facile residua", remainingKm,
+      "Completa la distanza restante della parte centrale a ritmo facile, senza aggiungere altre ripetute.",
+      "RPE 3–4/10");
+  } else {
+    add("main", title, mainKm, instruction, effort);
+  }
+
   add("cooldown", "Defaticamento", s.cooldownKm ?? 0,
     "Rallenta gradualmente fino a una corsa molto facile o camminata. Termina senza forzare.",
     "RPE 1–2/10");
