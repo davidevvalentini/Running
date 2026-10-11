@@ -60,6 +60,7 @@ function renderPlan(plan) {
     ["Carico attuale", labels[plan.context.loadBand] ?? plan.context.loadBand]
   ].map(([title,value]) => `<div class="summary-card"><span>${esc(title)}</span><strong>${esc(value)}</strong></div>`).join("");
   $("#plan-warnings").innerHTML = plan.warnings.map(w => `<div class="warning">⚠ ${esc(w)}</div>`).join("");
+  if (plan.goalMarathonTimeSec) { const goal = document.createElement("div"); goal.className = "pace-zones"; goal.innerHTML = `<h3>Obiettivo maratona</h3><p>${esc(formatRaceTime(plan.goalMarathonTimeSec))} · passo medio teorico ${esc(plan.targetMarathonPaceSecPerKm ? `${Math.floor(plan.targetMarathonPaceSecPerKm / 60)}:${String(Math.round(plan.targetMarathonPaceSecPerKm % 60)).padStart(2,"0")}/km` : "non disponibile")}. È un obiettivo, non una previsione né una garanzia di risultato.</p>`; $("#plan-warnings").after(goal); }
   $("#pace-zones")?.remove();
   if (plan.paceZones) {
     const zones = document.createElement("div");
