@@ -54,3 +54,44 @@ test("shows exact repetition and recovery distances when structured set details 
   });
   assert.match(threshold.steps[1].title, /3 × 1000 m \/ 400 m facile/);
 });
+
+
+test("expands structured quality sets into individual work and recovery steps", () => {
+  const prescription = buildSessionPrescription({
+    type: "intervals", distanceKm: 6, effort: "controlled",
+    structure: {
+      warmupKm: 1, mainKm: 4, cooldownKm: 1,
+      mainSet: "5 × 400 m controllati, con 200 m facili.",
+      setDetails: {
+        kind: "intervals", repetitions: 5, workDistanceKm: 0.4,
+        recoveryDistanceKm: 0.2, recoveryCount: 4,
+        recoveryIntensity: "corsa molto facile", workIntensityRpe: 7
+      }
+    }
+  });
+  assert.equal(prescription.totalKm, 6);
+  assert.equal(prescription.steps.filter(step => step.kind === "work").length, 5);
+  assert.equal(prescription.steps.filter(step => step.kind === "recovery").length, 4);
+  assert.equal(prescription.steps.find(step => step.kind === "easy").distanceKm, 1.2);
+  assert.deepEqual(prescription.steps.map(step => step.order), prescription.steps.map((_, index) => index + 1));
+  assert.equal(Math.round(prescription.steps.reduce((sum, step) => sum + step.distanceKm, 0) * 10) / 10, 6);
+});
+
+test("threshold expansion puts recovery only between repetitions and preserves total distance", () => {
+  const prescription = buildSessionPrescription({
+    type: "threshold", distanceKm: 8,
+    structure: {
+      warmupKm: 1.5, mainKm: 5, cooldownKm: 1.5,
+      mainSet: "3 × 1 km a soglia, recupero 400 m.",
+      setDetails: {
+        kind: "threshold", repetitions: 3, workDistanceKm: 1,
+        recoveryDistanceKm: 0.4, recoveryCount: 2, recoveryIntensity: "corsa facile"
+      }
+    }
+  });
+  assert.equal(prescription.steps.filter(step => step.kind === "work").length, 3);
+  assert.equal(prescription.steps.filter(step => step.kind === "recovery").length, 2);
+  assert.equal(prescription.steps.filter(step => step.kind === "easy").length, 1);
+  assert.equal(prescription.totalKm, 8);
+  assert.equal(prescription.steps.at(-1).kind, "cooldown");
+});
