@@ -459,10 +459,28 @@ $("#import-preview").addEventListener("click", e => {
   }
   persist(); $("#import-preview").innerHTML = `<p class="note ok">Importazione: ${added} aggiunte, ${dup} duplicati ignorati.</p>`; currentPreview = null; $("#activity-file").value = ""; renderAll();
 });
-$("#export-button").addEventListener("click", () => {
+function exportData() {
   const url = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }));
   const a = document.createElement("a"); a.href = url; a.download = "running-export.json"; a.click(); URL.revokeObjectURL(url);
-});
+}
+$("#export-button").addEventListener("click", exportData);
+$("#export-profile").addEventListener("click", exportData);
+
+/* ---------- reset ---------- */
+function resetAll() {
+  state = { profile: null, plan: null, workouts: [], feedback: [], dismissed: [], tests: [], savedAt: Date.now() };
+  try { state = store.write(state); } catch (e) { console.warn(e); }
+  clearTimeout(pushTimer); pushRemote(); // il server tiene la versione più recente: anche gli altri dispositivi si azzerano
+  weather = null; currentPreview = null;
+  const f = $("#profile-form"); f.reset(); delete f.elements.daysAvailable.dataset.touched; syncGoalLabel(); suggestDays();
+  $("#activity-form").reset(); $("#activity-form").elements.date.value = today(); $("#import-preview").hidden = true;
+  $("#profile-error").hidden = true;
+  renderAll(); location.hash = "#profilo"; route();
+  const msg = $("#reset-message"); msg.textContent = "Tutto azzerato. Puoi creare un nuovo piano."; msg.hidden = false;
+}
+$("#reset-start").addEventListener("click", () => { $("#reset-confirm").hidden = false; $("#reset-start").hidden = true; });
+$("#reset-no").addEventListener("click", () => { $("#reset-confirm").hidden = true; $("#reset-start").hidden = false; });
+$("#reset-yes").addEventListener("click", () => { $("#reset-confirm").hidden = true; $("#reset-start").hidden = false; resetAll(); });
 
 function renderAll() {
   const chip = $("#countdown");

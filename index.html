@@ -75,6 +75,17 @@
           <p id="profile-error" class="note err" role="alert" hidden></p>
         </form>
       </div>
+      <div class="card" id="data-card">
+        <h2>I tuoi dati</h2>
+        <p class="note">Piano, allenamenti, riscontri e test sono salvati su questo dispositivo (e, nel Second Brain, sincronizzati tra i tuoi dispositivi).</p>
+        <div class="actions-row"><button id="export-profile" class="btn small secondary" type="button">Esporta in JSON</button><button id="reset-start" class="btn small danger" type="button">Azzera piano e dati…</button></div>
+        <div id="reset-confirm" class="proposal danger-box" hidden>
+          <h3>Cancellare tutto?</h3>
+          <p>Verranno eliminati profilo, piano, allenamenti registrati, riscontri e test iniziali. Non si può annullare: se vuoi tenerne una copia, esporta prima i dati.</p>
+          <div class="actions"><button id="reset-yes" class="btn small danger" type="button">Sì, cancella tutto</button><button id="reset-no" class="btn small secondary" type="button">Annulla</button></div>
+        </div>
+        <p id="reset-message" class="note ok" role="status" hidden></p>
+      </div>
       <p class="note" id="disclaimer"></p>
     </section>
   </main>
