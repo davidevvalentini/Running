@@ -63,7 +63,7 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
       cooldownKm: 0,
       mainSet: options.longFinish
         ? `Lungo progressivo controllato: primi ${round1(total * 0.8)} km facili (RPE 3–4/10), ultimi ${round1(total * 0.2)} km al massimo a ritmo regolare moderato (RPE 5/10), solo se stai bene. Non è una prova a ritmo gara; se sei affaticato, mantieni tutto facile.`
-        : `Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km, ma prevale il test della conversazione` : ""}. Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta.`
+        : `Corri tutto il lungo a intensità facile e conversazionale (RPE 3–4/10)${paceZones?.labels.easy ? `; riferimento indicativo ${paceZones.labels.easy} min/km, ma prevale il test della conversazione` : ""}. Parti piano; se la tecnica o la sensazione peggiorano, accorcia la seduta.`
     };
   }
   if (type === "easy" || type === "run_walk") {
@@ -75,7 +75,7 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
       cooldownKm,
       mainSet: type === "run_walk"
         ? "Alterna corsa molto facile e camminata (ad esempio 3 min + 1 min); ripeti senza forzare e termina sentendoti in controllo."
-        : `Ritmo facile, RPE 3–4/10: devi riuscire a parlare per frasi complete${paceZones ? `; riferimento indicativo ${paceZones.labels.easy} min/km` : ""}. Nessun finale veloce.`
+        : `Ritmo facile, RPE 3–4/10: devi riuscire a parlare per frasi complete${paceZones?.labels.easy ? `; riferimento indicativo ${paceZones.labels.easy} min/km` : ""}. Nessun finale veloce.`
     };
   }
   const warmupKm = round1(total * 0.2);
@@ -85,12 +85,12 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
   if (type === "intervals") {
     const reps = Math.min(8, Math.floor((mainKm + 0.2) / 0.6));
     mainSet = reps >= 2
-      ? `Parte centrale: ${reps} × 400 m sostenuti ma controllati (RPE 7/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Il chilometraggio residuo della parte centrale è facile; niente sprint.`
+      ? `Parte centrale: ${reps} × 400 m sostenuti ma controllati (RPE 7/10)${paceZones?.labels.intervals ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Il chilometraggio residuo della parte centrale è facile; niente sprint.`
       : "Distanza insufficiente per una serie di ripetute completa: trasforma la seduta in corsa facile, senza comprimere riscaldamento o defaticamento.";
   } else if (type === "threshold") {
     const reps = Math.min(4, Math.floor((mainKm + 0.4) / 1.4));
     mainSet = reps >= 1
-      ? `Parte centrale: ${reps} × 1 km a soglia controllata (RPE 6/10)${paceZones ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile dopo ogni prova tranne l'ultima. Il chilometraggio residuo è facile.`
+      ? `Parte centrale: ${reps} × 1 km a soglia controllata (RPE 6/10)${paceZones?.labels.threshold ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile dopo ogni prova tranne l'ultima. Il chilometraggio residuo è facile.`
       : "La seduta è troppo breve per ripetute di soglia con recupero adeguato: svolgi la parte centrale a ritmo facile e non forzare.";
   } else {
     mainSet = paceZones
