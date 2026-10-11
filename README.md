@@ -20,7 +20,7 @@ npm test
 
 ## Current features
 - Italian responsive interface for runner profile and race date.
-- Optional recent 5 km, 10 km or half-marathon result to estimate indicative pace bands (easy/long, theoretical marathon pace, threshold and intervals).
+- Optional marathon goal time, plus a recent 5 km, 10 km or half-marathon result to estimate indicative pace bands (easy/long, theoretical marathon pace, threshold and intervals).
 - Deterministic plan generation with base, build, specific and taper phases where the remaining horizon allows it.
 - Day-labelled weekly sessions with structured warm-up, main block and cool-down steps, per-block distance, effort cues, and concrete instructions for easy, run/walk, long and quality workouts. Quality repetitions are capped to fit the main block; established runners may get an optional controlled finish on sufficiently long specific-phase runs.
 - Manual activity logging with distance, duration, RPE and notes.
