@@ -33,3 +33,24 @@ test("rejects malformed prescriptions and omits zero-distance steps", () => {
   assert.equal(prescription.steps.length, 1);
   assert.equal(prescription.steps[0].kind, "main");
 });
+
+test("shows exact repetition and recovery distances when structured set details exist", () => {
+  const intervals = buildSessionPrescription({
+    type: "intervals", distanceKm: 6, effort: "controlled",
+    structure: {
+      warmupKm: 1, mainKm: 4, cooldownKm: 1,
+      mainSet: "Parte centrale: 5 × 400 m controllati, con 200 m facili.",
+      setDetails: { kind: "intervals", repetitions: 5, workDistanceKm: 0.4, recoveryDistanceKm: 0.2, recoveryCount: 4 }
+    }
+  });
+  assert.match(intervals.steps[1].title, /5 × 400 m \/ 200 m facile/);
+  const threshold = buildSessionPrescription({
+    type: "threshold", distanceKm: 8, effort: "controlled",
+    structure: {
+      warmupKm: 1.5, mainKm: 5, cooldownKm: 1.5,
+      mainSet: "Parte centrale: 3 × 1 km a soglia, con 400 m facili tra i blocchi.",
+      setDetails: { kind: "threshold", repetitions: 3, workDistanceKm: 1, recoveryDistanceKm: 0.4, recoveryCount: 2 }
+    }
+  });
+  assert.match(threshold.steps[1].title, /3 × 1000 m \/ 400 m facile/);
+});
