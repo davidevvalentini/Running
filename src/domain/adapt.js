@@ -15,7 +15,7 @@ export function paceShiftFor(plan, date) {
   return (plan.adjustments ?? []).filter(a => a.paceShiftSec && inRange(a, date)).reduce((s, a) => s + a.paceShiftSec, 0);
 }
 export function pacesFor(plan, date) {
-  return buildPaces(plan.racePaceSec, paceShiftFor(plan, date));
+  return buildPaces(plan.racePaceSec, paceShiftFor(plan, date), plan.goalPaceSec ?? plan.racePaceSec);
 }
 
 // Seduta del giorno dopo gli aggiustamenti accettati.
@@ -132,4 +132,32 @@ export function proposeFromWeek({ plan, workouts, today, dismissed = [] }) {
   return [{ id, kind: "week-low", title: `Settimana ${prev + 1}: aderenza bassa`,
     reason: `Hai registrato ${adh.done} km su ${adh.planned} previsti. Non li recupero: riduco del 15% i prossimi 7 giorni per rientrare gradualmente.`,
     effect: { fromDate: addDays(today, 0), toDate: addDays(today, 6), volumeFactor: 0.85 } }];
+}
+
+// Sposta una seduta su un altro giorno della stessa settimana (scambia se occupato).
+export function moveSession(plan, fromDate, toDate, today) {
+  if (fromDate === toDate) throw new Error("Scegli un giorno diverso.");
+  if (toDate < today || fromDate < today) throw new Error("Non puoi spostare sedute nel passato.");
+  const wi = plan.weeks.findIndex(w => w.days.some(d => d.date === fromDate));
+  if (wi < 0 || !plan.weeks[wi].days.some(d => d.date === toDate)) throw new Error("Puoi spostare una seduta solo dentro la sua settimana.");
+  const week = plan.weeks[wi];
+  const a = week.days.find(d => d.date === fromDate), b = week.days.find(d => d.date === toDate);
+  if (!a.session) throw new Error("Nel giorno di partenza non c'è una seduta.");
+  if (a.session.kind === "race" || b.session?.kind === "race") throw new Error("La gara non si sposta.");
+  const days = week.days.map(d => d.date === fromDate ? { ...d, session: b.session } : d.date === toDate ? { ...d, session: a.session } : d);
+  const hard = d => d.session && (d.session.kind === "quality" || d.session.kind === "long");
+  const clash = days.some((d, i) => i > 0 && hard(d) && hard(days[i - 1]));
+  const weeks = plan.weeks.map((w, i) => i === wi ? { ...w, days } : w);
+  return {
+    plan: { ...plan, weeks, version: (plan.version ?? 1) + 1, moves: [...(plan.moves ?? []), { at: new Date().toISOString(), fromDate, toDate }] },
+    warning: clash ? "Attenzione: due sedute intense (qualità o lungo) sono in giorni consecutivi. Se puoi, lascia un giorno di recupero in mezzo." : null
+  };
+}
+
+// Giorni verso cui una seduta può essere spostata.
+export function moveTargets(plan, date, today) {
+  const week = plan.weeks.find(w => w.days.some(d => d.date === date));
+  const src = week?.days.find(d => d.date === date);
+  if (!week || !src?.session || src.session.kind === "race") return [];
+  return week.days.filter(d => d.date !== date && d.date >= today && d.session?.kind !== "race");
 }
