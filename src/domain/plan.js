@@ -191,8 +191,8 @@ export function assessFeasibility(profile, week1, goalKm = 42.195) {
     if (ratio >= 1.02) { score += 2; notes.push("La gara recente proietta un tempo migliore dell'obiettivo."); }
     else if (ratio >= 0.95) { score += 1; notes.push("L'obiettivo è leggermente più ambizioso di quanto proietti la gara recente: realistico con una buona preparazione."); }
     else notes.push("L'obiettivo è molto più veloce di quanto proietti la gara recente: valuta un tempo meno ambizioso.");
-  } else notes.push("Nessuna gara recente: aggiungila al profilo per una valutazione più affidabile.");
-  if (week1) {
+  } else notes.push("Nessuna gara recente: svolgi i test iniziali (scheda Oggi) per stabilire livello e passo gara realistici.");
+  if (week1 && profile.weeklyKm != null && profile.longestRunKm != null) {
     known++;
     const volRatio = profile.weeklyKm / Math.max(1, week1.km);
     const longRatio = profile.longestRunKm / Math.max(1, week1.longKm);
@@ -213,11 +213,13 @@ export function validateProfile(p) {
   else if (!Number.isFinite(p.goalTimeSec) || p.goalTimeSec < cfg.minGoal || p.goalTimeSec > cfg.maxGoal) errors.push(`Il tempo obiettivo per ${cfg.label} deve essere tra ${fmtLimit(cfg.minGoal)} e ${fmtLimit(cfg.maxGoal)}.`);
   if (!isValidISODate(p.raceDate)) errors.push("Data gara non valida.");
   if (!Number.isInteger(p.daysAvailable) || p.daysAvailable < 3 || p.daysAvailable > 6) errors.push("Scegli da 3 a 6 giorni di corsa a settimana.");
-  if (!Number.isFinite(p.weeklyKm) || p.weeklyKm < 0 || p.weeklyKm > 300) errors.push("I km settimanali devono essere tra 0 e 300.");
-  if (!Number.isFinite(p.longestRunKm) || p.longestRunKm < 0 || p.longestRunKm > 100) errors.push("Il lungo recente deve essere tra 0 e 100 km.");
+  // I km settimanali dipendono dalla fase del piano: non sono un input (restano accettati, se presenti, da profili vecchi).
+  if (p.weeklyKm != null && (!Number.isFinite(p.weeklyKm) || p.weeklyKm < 0 || p.weeklyKm > 300)) errors.push("I km settimanali devono essere tra 0 e 300.");
+  if (p.longestRunKm != null && (!Number.isFinite(p.longestRunKm) || p.longestRunKm < 0 || p.longestRunKm > 100)) errors.push("Il lungo recente deve essere tra 0 e 100 km.");
   const hasD = p.recentRaceDistanceKm != null, hasT = p.recentRaceTimeSec != null;
   if (hasD !== hasT) errors.push("Indica distanza e tempo della gara recente insieme.");
   if (hasD && ![5, 10, 21.0975].includes(p.recentRaceDistanceKm)) errors.push("La gara recente deve essere 5, 10 o mezza maratona.");
+  if (hasT && (!Number.isFinite(p.recentRaceTimeSec) || p.recentRaceTimeSec < 600 || p.recentRaceTimeSec > 8 * 3600)) errors.push("Il tempo della gara recente non è plausibile.");
   if (p.maxHr != null && (!Number.isFinite(p.maxHr) || p.maxHr < 120 || p.maxHr > 230)) errors.push("La frequenza massima deve essere tra 120 e 230 bpm.");
   return { ok: errors.length === 0, errors };
 }
@@ -269,7 +271,7 @@ export function generatePlan(profile, options = {}) {
   });
 
   const week1 = weeks[0], longOfWeek1 = week1.days[6].session;
-  const week1Info = { km: week1.km, longKm: longOfWeek1 ? measure(longOfWeek1.steps, paces).km : 0 };
+  const week1Info = profile.weeklyKm != null && profile.longestRunKm != null ? { km: week1.km, longKm: longOfWeek1 ? measure(longOfWeek1.steps, paces).km : 0 } : null;
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,

@@ -131,3 +131,14 @@ details.fold>.fold-body{margin-top:12px}
 .kv>div{min-width:0}.kv strong,.card h2{overflow-wrap:anywhere}
 .card,.week,.day{min-width:0}
 @media(max-width:360px){.kv{grid-template-columns:1fr}.wrap{padding-left:12px;padding-right:12px}.tabs{padding-left:2px;padding-right:2px}}
+
+.time-set{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0}
+.time-set legend{font-size:12px;font-weight:650;color:var(--sub);padding:0;margin-bottom:5px;grid-column:1/-1;float:left;width:100%}
+.time-set label{font-weight:500;color:var(--muted)}
+.time-set input{text-align:center;font-size:16px}
+.test-grid{display:grid;gap:10px}
+.verdict{display:inline-block;font-weight:800;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--muted);color:#fff}
+.verdict.comodo{background:var(--ok)}.verdict.realistico{background:var(--easy)}.verdict.ambizioso{background:var(--quality)}.verdict.fuori{background:var(--err)}
+ol.how{margin:8px 0 0;padding-left:20px;font-size:13px;color:var(--sub)}
+.grid2>.time-set{grid-column:1/-1}
+.note+.form{margin-top:14px}

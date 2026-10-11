@@ -1,5 +1,5 @@
 const STORAGE_KEY = "running-planner:v2";
-const EMPTY = () => ({ profile: null, plan: null, workouts: [], feedback: [], dismissed: [], savedAt: 0 });
+const EMPTY = () => ({ profile: null, plan: null, workouts: [], feedback: [], dismissed: [], tests: [], savedAt: 0 });
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const num = v => v == null || (typeof v === "number" && Number.isFinite(v));
 const obj = v => v && typeof v === "object" && !Array.isArray(v);
@@ -16,6 +16,7 @@ export function validPlan(plan) {
                  (s.k === "reps" && Number.isFinite(s.n) && Number.isFinite(s.workKm) && Number.isFinite(s.recSec) && typeof s.workCode === "string" && typeof s.recCode === "string")))))));
 }
 const validWorkout = w => obj(w) && typeof w.id === "string" && ISO.test(w.date) && num(w.distanceKm) && num(w.durationSec) && num(w.rpe) && (w.distanceKm != null || w.durationSec != null);
+const validTest = t => obj(t) && typeof t.id === "string" && ["base30", "tt5k"].includes(t.type) && ISO.test(t.date) && num(t.distanceKm) && num(t.durationSec) && num(t.rpe) && (t.type === "base30" ? t.distanceKm > 0 : t.durationSec > 0);
 const validFeedback = f => obj(f) && ISO.test(f.date) && typeof f.planId === "string" && typeof f.completion === "string" && num(f.plannedKm) && num(f.actualKm) && num(f.durationSec) && num(f.rpe);
 
 export function sanitize(parsed) {
@@ -27,6 +28,7 @@ export function sanitize(parsed) {
     workouts: Array.isArray(p.workouts) ? p.workouts.filter(validWorkout) : [],
     feedback: Array.isArray(p.feedback) ? p.feedback.filter(validFeedback) : [],
     dismissed: Array.isArray(p.dismissed) ? p.dismissed.filter(x => typeof x === "string") : [],
+    tests: Array.isArray(p.tests) ? p.tests.filter(validTest) : [],
     savedAt: Number.isFinite(p.savedAt) ? p.savedAt : 0
   };
 }

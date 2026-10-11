@@ -1,8 +1,9 @@
-import { generatePlan, planSummary, requiredAbilities, recommendedDays, DISTANCES, wdShort } from "./domain/plan.js";
+import { generatePlan, planSummary, requiredAbilities, recommendedDays, assessFeasibility, addDays, DISTANCES, wdShort } from "./domain/plan.js";
 import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES } from "./domain/paces.js";
 import { expandSteps, notation } from "./domain/session.js";
 import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, weekAdherence } from "./domain/adapt.js";
 import { fetchWeather, hrZones, weatherAdvice, weeklyLoad } from "./domain/extras.js";
+import { TEST_DEFS, evaluateBase, evaluateGoal, latestTest, levelSummary, proposeFromTests } from "./domain/assessment.js";
 import { encodeWorkoutFit } from "./import/fit.js";
 import { createWorkout } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
@@ -94,7 +95,8 @@ function currentProposals() {
   const plan = state.plan;
   if (!plan || plan.status === "paused") return [];
   const feedback = [...state.feedback].sort((a, b) => b.date.localeCompare(a.date));
-  return [...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
+  const testProps = state.profile ? proposeFromTests({ plan, goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests, paces: planSummary(plan).paces, today: today(), dismissed: state.dismissed }) : [];
+  return [...testProps, ...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
 }
 function sessionActions(day, eff) {
   const plan = state.plan, targets = day.date >= today() ? moveTargets(plan, day.date, today()) : [];
@@ -117,6 +119,40 @@ function weatherCard() {
   const adv = weatherAdvice(d);
   return `<div class="card"><div class="row-between"><h2>Meteo · ${esc(weather.data.place)}</h2><span class="chip">${Math.round(d.tempMin)}° / ${Math.round(d.tempMax)}°</span></div><p class="note">Pioggia ${Math.round(d.rainProb)}% · vento fino a ${Math.round(d.windMax)} km/h.</p>${adv.notes.length ? adv.notes.map(n => `<p class="note">${esc(n)}</p>`).join("") : '<p class="note">Condizioni buone per correre.</p>'}</div>`;
 }
+/* ---------- test iniziali ---------- */
+function testResultLine(t) {
+  return t.type === "base30" ? `${fmtKm(t.distanceKm)} km in 30' (${fmtPace(1800 / t.distanceKm)}/km)${t.rpe ? ` · RPE ${t.rpe}` : ""}` : `${fmtDuration(t.durationSec)} sui 5 km (${fmtPace(t.durationSec / 5)}/km)${t.rpe ? ` · RPE ${t.rpe}` : ""}`;
+}
+function testForm(def) {
+  const fields = def.id === "base30"
+    ? `<label>${esc(def.field)}<input type="number" inputmode="decimal" name="distanceKm" min="1" max="12" step="0.01" required placeholder="es. 4.5"></label>`
+    : `<div class="time-set"><label>minuti<input type="number" inputmode="numeric" name="min" min="10" max="60" step="1" required placeholder="25"></label><label>secondi<input type="number" inputmode="numeric" name="sec" min="0" max="59" step="1" placeholder="00"></label></div>`;
+  return `<form class="form test-form" data-test="${def.id}" style="margin-top:10px">${fields}
+    <div class="grid2"><label>Data<input type="date" name="date" value="${today()}" required></label>
+    <label>Sforzo percepito (RPE)<select name="rpe"><option value="">—</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<option>${n}</option>`).join("")}</select></label></div>
+    <button class="btn small" type="submit">Salva il test</button><p class="note err test-error" role="alert" hidden></p></form>`;
+}
+function testsCard({ compact = false } = {}) {
+  const plan = state.plan; if (!plan) return "";
+  const done = TEST_DEFS.map(d => latestTest(state.tests, d.id));
+  const rows = TEST_DEFS.map((def, i) => `<div class="card" style="padding:12px;background:var(--surface2)"><div class="row-between"><strong>${esc(def.title)}</strong>${done[i] ? '<span class="badge easy">fatto</span>' : '<span class="badge">da fare</span>'}</div>
+    <p class="note">${esc(def.why)}</p>
+    ${done[i] ? `<p class="note"><strong>${esc(testResultLine(done[i]))}</strong> · ${fmtDate(done[i].date)} <button class="link" data-undo-test="${esc(done[i].id)}" type="button">Rifai</button></p>`
+      : `<details class="fold" ${compact ? "" : "open"}><summary>Come si fa</summary><div class="fold-body"><ol class="how">${def.how.map(h => `<li>${esc(h)}</li>`).join("")}</ol>${testForm(def)}</div></details>`}</div>`).join("");
+  const goalEval = evaluateGoal({ goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests });
+  const baseEval = evaluateBase({ z2PaceSec: planSummary(plan).paces["Z2-CLR"], tests: state.tests });
+  let evalHtml = "";
+  if (goalEval || baseEval) {
+    const pr = goalEval?.predictions;
+    evalHtml = `<div class="card" style="padding:12px;margin-top:10px;border-color:var(--accent)"><div class="row-between"><strong>Valutazione iniziale</strong>${goalEval ? `<span class="verdict ${goalEval.verdict === "fuori portata" ? "fuori" : goalEval.verdict}">${esc(goalEval.verdict)}</span>` : ""}</div>
+      <p class="note">${esc(levelSummary({ goalEval, baseEval }))}.</p>
+      ${pr ? `<div class="kv" style="margin-top:8px"><div><span>10 km</span><strong>${fmtDuration(pr["10k"])}</strong></div><div><span>Mezza</span><strong>${fmtDuration(pr.half)}</strong></div><div><span>Maratona</span><strong>${fmtGoal(pr.marathon)}</strong></div><div><span>VMA</span><strong>${pr.vma} km/h</strong></div></div><p class="note">Stime dal test sui 5 km (Riegel con margine di fatica sulle distanze lunghe): indicative, non garantite.</p>` : ""}
+      ${[...(goalEval?.notes ?? []), ...(baseEval?.notes ?? [])].map(n => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  }
+  return `<div class="card"><h2>Test iniziali</h2><p class="note">Prima di partire, due test stabiliscono il tuo livello e il passo gara realistico. Si fanno nei primi giorni, a sensazione, riposato.</p><div class="test-grid" style="margin-top:12px">${rows}</div>${evalHtml}</div>`;
+}
+// La scheda dei test resta in "Oggi" per le prime due settimane (poi vive in Progressi), anche a test completati, per mostrare la valutazione.
+const needsTests = () => { const plan = state.plan; return Boolean(plan) && today() <= addDays(plan.startDate, 13); };
 const EXTRA = { kind: "extra", title: "Corsa fuori programma", km: 0, sec: 0, avgPaceSec: 0 };
 const doneKm = date => state.workouts.filter(w => w.date === date).reduce((s, w) => s + (w.distanceKm ?? 0), 0);
 
@@ -129,6 +165,7 @@ function renderOggi() {
   if (plan.status === "paused") html += `<div class="warn">Piano sospeso per dolore o sintomi segnalati. Chiedi una valutazione professionale prima di riprendere. <button class="link" data-resume type="button">Riprendi il piano</button></div>`;
   html += proposalCards(currentProposals());
   html += weatherCard();
+  if (needsTests()) html += testsCard({ compact: true });
   if (loc.state === "before") {
     const n = nextSession(plan, t) ?? { day: plan.weeks[0].days.find(d => d.session) };
     const first = plan.weeks[0].days.find(d => d.session), eff = effectiveSession(plan, first);
@@ -199,12 +236,18 @@ const ZONES = [
   ["Zona 4", "CV, RipLL, RipL", "87–93% FC max", "7–8", "Soglia: potenza aerobica e tolleranza al lattato."],
   ["Zona 5", "RipM, RipB", "93–100% FC max", "8–9", "VO2max e velocità."]
 ];
+function feasibilityNow(plan) {
+  const t = latestTest(state.tests, "tt5k"), p = state.profile;
+  if (!p) return plan.feasibility;
+  const asRecent = !p.recentRaceTimeSec && t ? { recentRaceDistanceKm: 5, recentRaceTimeSec: t.durationSec } : {};
+  return assessFeasibility({ ...p, goalTimeSec: plan.goalTimeSec, ...asRecent }, null, plan.distanceKm ?? 42.195);
+}
 function renderPiano() {
   const el = $("#view-piano"), plan = state.plan;
   if (!plan) { el.innerHTML = `<div class="empty">Nessun piano. Creane uno dal profilo.</div>`; return; }
   const s = planSummary(plan), t = today(), loc = locate(plan, t), curWeek = loc?.state === "in" ? loc.week.week : 0;
   const maxKm = Math.max(...plan.weeks.map(w => w.km));
-  const req = requiredAbilities(plan.goalTimeSec, plan.distanceKm ?? 42.195), feas = plan.feasibility, zones = hrZones(state.profile?.maxHr);
+  const req = requiredAbilities(plan.goalTimeSec, plan.distanceKm ?? 42.195), feas = feasibilityNow(plan), zones = hrZones(state.profile?.maxHr);
   const race = new Date(`${plan.raceDate}T00:00:00Z`).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   let html = `<div class="card"><h2>Riepilogo del piano</h2><div class="kv" style="margin-top:12px">
     <div><span>${esc(planLabel(plan))}</span><strong>${esc(race)}</strong></div><div><span>Obiettivo</span><strong>${esc(fmtGoal(plan.goalTimeSec))}</strong></div><div><span>Ritmo gara</span><strong>${fmtPace(s.paces.GARA)}/km</strong></div><div><span>Durata</span><strong>${plan.totalWeeks} settimane</strong></div>
@@ -230,6 +273,7 @@ function renderPiano() {
 function renderProgressi() {
   const plan = state.plan, t = today();
   let html = proposalCards(currentProposals());
+  if (plan) html += testsCard({ compact: true });
   if (plan) {
     const loc = locate(plan, t), upto = loc.state === "in" ? loc.weekIndex : loc.state === "after" ? plan.weeks.length - 1 : -1;
     html += `<div class="card"><h2>Aderenza settimanale</h2>${upto < 0 ? '<p class="note">Il piano non è ancora iniziato.</p>' : plan.weeks.slice(0, upto + 1).map((w, i) => {
@@ -248,53 +292,69 @@ function renderProgressi() {
 }
 
 /* ---------- PROFILO ---------- */
+const nv = (f, n) => { const v = f.elements[n].value; return v === "" ? 0 : Number(v); };
+const setHMS = (f, prefix, sec, parts) => {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60;
+  if (parts.includes("h")) f.elements[`${prefix}H`].value = h || "";
+  if (parts.includes("m")) f.elements[`${prefix}M`].value = parts.includes("h") ? String(m).padStart(2, "0") : String(Math.floor(sec / 60));
+  if (parts.includes("s")) f.elements[`${prefix}S`].value = String(x).padStart(2, "0");
+};
+// Obiettivo: ore+minuti per maratona e mezza, minuti+secondi per i 10 km.
+const goalParts = dist => (dist === "10k" ? ["m", "s"] : ["h", "m"]);
+function readGoalSec(f) {
+  const tenk = f.elements.distance.value === "10k";
+  return tenk ? nv(f, "goalM") * 60 + nv(f, "goalS") : nv(f, "goalH") * 3600 + nv(f, "goalM") * 60;
+}
+function readRaceSec(f) {
+  const sec = nv(f, "raceH") * 3600 + nv(f, "raceM") * 60 + nv(f, "raceS");
+  return sec > 0 ? sec : null;
+}
 function restoreProfile() {
   const p = state.profile, f = $("#profile-form");
   if (!p) return;
   f.elements.raceDate.value = p.raceDate;
   f.elements.distance.value = p.distance ?? "marathon"; syncGoalLabel();
-  f.elements.goal.value = (p.distance ?? "marathon") === "10k" ? `${Math.floor(p.goalTimeSec / 60)}:${String(p.goalTimeSec % 60).padStart(2, "0")}` : `${Math.floor(p.goalTimeSec / 3600)}:${String(Math.floor((p.goalTimeSec % 3600) / 60)).padStart(2, "0")}`;
+  setHMS(f, "goal", p.goalTimeSec, goalParts(p.distance ?? "marathon"));
   f.elements.maxHr.value = p.maxHr ?? ""; f.elements.city.value = p.city ?? "";
   f.elements.daysAvailable.value = String(p.daysAvailable); f.elements.daysAvailable.dataset.touched = "1";
-  f.elements.weeklyKm.value = p.weeklyKm; f.elements.longestRunKm.value = p.longestRunKm;
   f.elements.recentRaceDistance.value = p.recentRaceDistanceKm ? String(p.recentRaceDistanceKm) : "";
-  if (p.recentRaceTimeSec) { const s = p.recentRaceTimeSec; f.elements.recentRaceTime.value = s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+  if (p.recentRaceTimeSec) setHMS(f, "race", p.recentRaceTimeSec, ["h", "m", "s"]);
   f.elements.symptoms.checked = Boolean(p.hasConcerningSymptoms);
 }
 function syncGoalLabel() {
-  const f = $("#profile-form"), tenk = f.elements.distance.value === "10k";
-  $("#goal-label").textContent = tenk ? "Tempo obiettivo (mm:ss)" : "Tempo obiettivo (h:mm)";
-  f.elements.goal.placeholder = tenk ? "es. 55:00" : f.elements.distance.value === "half" ? "es. 2:00" : "es. 4:00";
+  const f = $("#profile-form"), dist = f.elements.distance.value, parts = goalParts(dist);
+  $("#goal-label").textContent = dist === "10k" ? "Tempo obiettivo (minuti e secondi)" : "Tempo obiettivo (ore e minuti)";
+  for (const label of f.querySelectorAll("#goal-label ~ label")) label.hidden = !parts.includes(label.dataset.part);
+  f.elements.goalH.placeholder = dist === "half" ? "2" : "4";
+  f.elements.goalM.placeholder = dist === "10k" ? "55" : "00";
 }
 function suggestDays() {
-  const f = $("#profile-form"), dist = f.elements.distance.value, cfg = DISTANCES[dist];
-  let goal = null;
-  try { goal = parseTime(f.elements.goal.value, { min: cfg.minGoal, max: cfg.maxGoal, what: "", twoParts: dist === "10k" ? "ms" : "hm" }); } catch { /* ancora incompleto */ }
-  if (!goal) { $("#days-label").textContent = "Giorni di corsa a settimana"; return; }
+  const f = $("#profile-form"), dist = f.elements.distance.value, cfg = DISTANCES[dist], goal = readGoalSec(f);
+  if (!(goal >= cfg.minGoal && goal <= cfg.maxGoal)) { $("#days-label").textContent = "Giorni di corsa a settimana"; return; }
   const rec = recommendedDays(dist, goal);
   $("#days-label").textContent = `Giorni di corsa a settimana (consigliati: ${rec})`;
   if (!f.elements.daysAvailable.dataset.touched) f.elements.daysAvailable.value = String(rec);
 }
 $("#profile-form").elements.daysAvailable.addEventListener("change", e => { e.target.dataset.touched = "1"; });
 $("#profile-form").elements.distance.addEventListener("change", () => { syncGoalLabel(); suggestDays(); });
-$("#profile-form").elements.goal.addEventListener("input", suggestDays);
+for (const n of ["goalH", "goalM", "goalS"]) $("#profile-form").elements[n].addEventListener("input", suggestDays);
 $("#profile-form").addEventListener("submit", e => {
   e.preventDefault();
   const f = e.currentTarget, err = $("#profile-error"); err.hidden = true; err.className = "note err";
   try {
     const dist = f.elements.distance.value, cfg = DISTANCES[dist];
-    const goal = parseTime(f.elements.goal.value, { min: cfg.minGoal, max: cfg.maxGoal, what: "Tempo obiettivo", twoParts: dist === "10k" ? "ms" : "hm" });
-    const raceTime = parseTime(f.elements.recentRaceTime.value, { min: 600, max: 8 * 3600, what: "Tempo gara recente" });
+    const goal = readGoalSec(f);
+    if (!goal) throw new Error(dist === "10k" ? "Inserisci il tempo obiettivo (minuti e secondi)." : "Inserisci il tempo obiettivo (ore e minuti).");
+    const raceTime = readRaceSec(f);
     const profile = {
       distance: dist, maxHr: f.elements.maxHr.value ? Number(f.elements.maxHr.value) : null, city: f.elements.city.value.trim() || null,
       raceDate: f.elements.raceDate.value, goalTimeSec: goal, daysAvailable: Number(f.elements.daysAvailable.value),
-      weeklyKm: Number(f.elements.weeklyKm.value), longestRunKm: Number(f.elements.longestRunKm.value),
       recentRaceDistanceKm: f.elements.recentRaceDistance.value ? Number(f.elements.recentRaceDistance.value) : null,
       recentRaceTimeSec: raceTime, hasConcerningSymptoms: f.elements.symptoms.checked
     };
     if (profile.recentRaceDistanceKm && !raceTime) throw new Error("Indica anche il tempo della gara recente.");
     if (!profile.recentRaceDistanceKm && raceTime) throw new Error("Indica anche la distanza della gara recente.");
-    const core = x => JSON.stringify([x?.distance ?? "marathon", x?.raceDate, x?.goalTimeSec, x?.daysAvailable, x?.weeklyKm, x?.longestRunKm, x?.recentRaceDistanceKm ?? null, x?.recentRaceTimeSec ?? null, Boolean(x?.hasConcerningSymptoms)]);
+    const core = x => JSON.stringify([x?.distance ?? "marathon", x?.raceDate, x?.goalTimeSec, x?.daysAvailable, x?.recentRaceDistanceKm ?? null, x?.recentRaceTimeSec ?? null, Boolean(x?.hasConcerningSymptoms)]);
     if (state.plan && state.profile && core(state.profile) === core(profile)) {
       state.profile = profile; persist(); renderAll(); restoreProfile();
       err.textContent = "Preferenze salvate (il piano non è cambiato)."; err.className = "note ok"; err.hidden = false; return;
@@ -313,7 +373,12 @@ document.addEventListener("click", e => {
   if (t.dataset.goto) { location.hash = `#${t.dataset.goto}`; return; }
   if (t.dataset.accept != null) {
     const p = currentProposals().find(x => x.id === t.dataset.accept); if (!p) return;
-    state.plan = p.kind === "pause" ? { ...state.plan, status: "paused" } : applyAdjustment(state.plan, p, today());
+    if (p.kind === "goal") {
+      try {
+        const profile = { ...state.profile, goalTimeSec: p.newGoalSec, hasConcerningSymptoms: false };
+        state.plan = generatePlan(profile, { today: today() }); state.profile = profile; restoreProfile();
+      } catch (error) { alert(error.message); return; }
+    } else state.plan = p.kind === "pause" ? { ...state.plan, status: "paused" } : applyAdjustment(state.plan, p, today());
     persist(); return renderAll();
   }
   if (t.dataset.dismiss != null) { state.dismissed.push(t.dataset.dismiss); persist(); return renderAll(); }
@@ -336,6 +401,22 @@ document.addEventListener("change", e => {
     state.plan = plan; persist(); renderAll();
     if (warning) alert(warning);
   } catch (error) { alert(error.message); sel.value = ""; }
+});
+document.addEventListener("submit", e => {
+  const form = e.target.closest(".test-form"); if (!form) return;
+  e.preventDefault();
+  const err = form.querySelector(".test-error"); err.hidden = true;
+  try {
+    const type = form.dataset.test, data = new FormData(form), rpe = String(data.get("rpe")) ? Number(data.get("rpe")) : null;
+    const test = { id: `test-${Date.now()}`, type, date: String(data.get("date")), rpe, distanceKm: null, durationSec: null };
+    if (type === "base30") { test.distanceKm = Number(data.get("distanceKm")); if (!(test.distanceKm >= 1 && test.distanceKm <= 12)) throw new Error("Distanza non plausibile per 30 minuti (1–12 km)."); }
+    else { test.durationSec = Number(data.get("min")) * 60 + Number(data.get("sec") || 0); if (!(test.durationSec >= 600 && test.durationSec <= 3600)) throw new Error("Tempo sui 5 km non plausibile (tra 10 e 60 minuti)."); }
+    state.tests = [...state.tests.filter(t => t.type !== type), test]; persist(); renderAll();
+  } catch (error) { err.textContent = error.message; err.hidden = false; }
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-undo-test]"); if (!b) return;
+  state.tests = state.tests.filter(t => t.id !== b.dataset.undoTest); persist(); renderAll();
 });
 document.addEventListener("submit", e => { if (e.target.id === "daily-form") { e.preventDefault(); submitDaily(e.target); } });
 document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => { location.hash = `#${b.dataset.tab}`; }));
