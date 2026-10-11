@@ -20,6 +20,11 @@
       <p>Un piano costruito sul tuo carico attuale, sui giorni che hai a disposizione e sulla data della gara. Il programma si adatta ai tuoi allenamenti, senza rincorrere quelli saltati.</p>
       <div class="hero-meta"><span>01 / Profilo</span><span>02 / Piano</span><span>03 / Revisione</span></div>
     </section>
+    <nav class="app-tabs" aria-label="Sezioni dell'app">
+      <button type="button" class="app-tab is-active" data-tab="plan-section" aria-selected="true">Programma</button>
+      <button type="button" class="app-tab" data-tab="daily-session-section" aria-selected="false">Seduta</button>
+      <button type="button" class="app-tab" data-tab="review-panel" aria-selected="false">Revisione</button>
+    </nav>
     <section class="panel profile-panel">
       <div class="section-heading"><div><div class="eyebrow">PUNTO DI PARTENZA</div><h2>Il tuo profilo runner</h2></div><span class="step">01</span></div>
       <form id="profile-form">
@@ -67,6 +72,31 @@
       <div id="plan-summary" class="summary-grid"></div>
       <div id="plan-warnings"></div>
       <div id="plan-weeks" class="weeks-list"></div>
+    </section>
+    <section id="daily-session-section" class="panel daily-session-panel" hidden>
+      <div class="section-heading"><div><div class="eyebrow">ALLENAMENTO DI OGGI</div><h2>La tua seduta</h2></div><span class="step">02</span></div>
+      <div id="daily-session-content"><p class="form-note">Genera un piano per vedere qui la seduta prevista per oggi.</p></div>
+      <div class="daily-feedback">
+        <h3>Com'è andata davvero?</h3>
+        <p class="form-note">Registra ciò che hai fatto. Il feedback genera una proposta motivata: non cambia automaticamente il piano.</p>
+        <form id="daily-session-form">
+          <div class="form-grid">
+            <label>Esito della seduta
+              <select name="completion" required><option value="completed">Completata</option><option value="modified">Completata in modo diverso</option><option value="skipped">Non svolta</option></select>
+            </label>
+            <label>Distanza effettiva (km)<input type="number" name="distanceKm" min="0.1" max="300" step="0.1" placeholder="es. 8"></label>
+            <label>Durata effettiva (minuti)<input type="number" name="durationMinutes" min="1" max="2880" step="1" placeholder="es. 48"></label>
+            <label>Sforzo percepito (RPE 1–10)
+              <select name="rpe"><option value="">Non indicato</option><option value="1">1 — Molto facile</option><option value="2">2</option><option value="3">3 — Facile</option><option value="4">4</option><option value="5">5 — Moderato</option><option value="6">6</option><option value="7">7 — Duro</option><option value="8">8</option><option value="9">9</option><option value="10">10 — Massimale</option></select>
+            </label>
+          </div>
+          <label>Note su sensazioni e recupero (facoltative)<textarea name="notes" rows="2" maxlength="2000" placeholder="Respiro, gambe, sonno, condizioni..."></textarea></label>
+          <label class="check-row"><input type="checkbox" name="fatigue"><span>Fatica insolita o recupero insufficiente</span></label>
+          <label class="check-row"><input type="checkbox" name="pain"><span>Dolore o sintomi preoccupanti</span></label>
+          <button class="primary-button" type="submit">Registra e valuta <span>↗</span></button>
+          <div id="daily-session-message" class="message" role="status" hidden></div>
+        </form>
+      </div>
     </section>
     <section class="panel activity-panel">
       <div class="section-heading"><div><div class="eyebrow">FEEDBACK REALE</div><h2>Registra un allenamento</h2></div><span class="step">03</span></div>
