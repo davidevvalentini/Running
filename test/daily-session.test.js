@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getDailySessionContext, suggestDailyAdjustment } from "../src/domain/daily-session.js";
+import { getDailySessionContext, suggestDailyAdjustment, summarizeDailyFeedback } from "../src/domain/daily-session.js";
 
 const plan = {
   startDate: "2026-10-12",
@@ -67,4 +67,18 @@ test("only well-tolerated sessions recommend maintaining rather than automatic p
 test("rejects malformed feedback", () => {
   assert.throws(() => suggestDailyAdjustment({ completion: "unknown", plannedKm: 5 }), /completion/);
   assert.throws(() => suggestDailyAdjustment({ completion: "completed", plannedKm: -1 }), /plannedKm/);
+});
+
+test("summarizes daily feedback within a weekly review range", async () => {
+  const result = summarizeDailyFeedback([
+    { date: "2026-10-05", completion: "skipped", rpe: null },
+    { date: "2026-10-06", completion: "completed", rpe: 8, fatigue: false },
+    { date: "2026-10-12", completion: "completed", rpe: 3, pain: true }
+  ], "2026-10-05", "2026-10-11");
+  assert.deepEqual(result, { painReported: false, unusualFatigue: true, skippedSessions: 1, highEffortSessions: 1 });
+});
+
+test("rejects invalid daily feedback review ranges", async () => {
+  assert.throws(() => summarizeDailyFeedback({}, "2026-10-01", "2026-10-07"), /array/);
+  assert.throws(() => summarizeDailyFeedback([], "2026-10-08", "2026-10-01"), /date range/);
 });

@@ -43,3 +43,17 @@ export function suggestDailyAdjustment({ completion, plannedKm, actualKm = null,
   }
   return { decision: "maintain", message: "Dati insufficienti per giustificare un aumento. Mantieni il piano e valuta più sedute, recupero e RPE." };
 }
+
+export function summarizeDailyFeedback(feedback, startDate, endDate) {
+  if (!Array.isArray(feedback)) throw new TypeError("feedback must be an array.");
+  if (typeof startDate !== "string" || typeof endDate !== "string" || startDate > endDate) {
+    throw new TypeError("A valid review date range is required.");
+  }
+  const entries = feedback.filter(item => item && typeof item.date === "string" && item.date >= startDate && item.date <= endDate);
+  return {
+    painReported: entries.some(item => item.pain === true),
+    unusualFatigue: entries.some(item => item.fatigue === true || (Number.isInteger(item.rpe) && item.rpe >= 8)),
+    skippedSessions: entries.filter(item => item.completion === "skipped").length,
+    highEffortSessions: entries.filter(item => Number.isInteger(item.rpe) && item.rpe >= 8).length
+  };
+}

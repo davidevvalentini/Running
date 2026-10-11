@@ -3,13 +3,13 @@ import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
 import { buildSessionPrescription } from "./domain/prescriptions.js";
-import { getDailySessionContext, suggestDailyAdjustment } from "./domain/daily-session.js";
+import { getDailySessionContext, suggestDailyAdjustment, summarizeDailyFeedback } from "./domain/daily-session.js";
 
 const store = createLocalStore();
 let state = store.read();
 let currentPreview = null;
 const $ = selector => document.querySelector(selector);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
 const labels = { beginner:"Principiante", intermediate:"Intermedio", advanced:"Evoluto", base:"Base", build:"Sviluppo", specific:"Specificità", taper:"Taper", run_walk:"Corsa/camminata", easy:"Corsa facile", long:"Lungo", threshold:"Soglia controllata", intervals:"Intervalli controllati", marathon_pace:"Ritmo maratona (solo se validato)" };
 
@@ -109,7 +109,7 @@ $("#daily-session-form").addEventListener("submit", event => {
   event.preventDefault();
   const form = event.currentTarget, data = new FormData(form), message = $("#daily-session-message");
   try {
-    const runner = state.runners[0], plan = state.plans[0], ctx = getDailySessionContext(plan);
+    const runner = state.runners[0], plan = state.plans[0], ctx = getDailySessionContext(plan, today());
     if (!runner || !plan || !ctx || !ctx.session) throw new Error("Non c\u0027è una seduta pianificata per oggi da confrontare.");
     if (plan.status === "paused" || runner.hasConcerningSymptoms) throw new Error("Il piano è sospeso: serve una valutazione appropriata prima di riprendere.");
     const completion = String(data.get("completion")), distanceText = String(data.get("distanceKm") ?? "").trim(), durationText = String(data.get("durationMinutes") ?? "").trim(), rpeText = String(data.get("rpe") ?? "").trim();
@@ -211,11 +211,12 @@ $("#review-form").addEventListener("submit", event => {
       throw new Error("Non c'è ancora una settimana completa del piano da valutare. La revisione sarà disponibile dopo i primi 7 giorni.");
     }
     const recent = state.workouts.filter(w => w.date >= completedWeek.startDate && w.date <= completedWeek.endDate);
+    const dailySummary = summarizeDailyFeedback(state.dailyFeedback ?? [], completedWeek.startDate, completedWeek.endDate);
     const review = reviewTrainingWeek({
       runner, plannedKm: completedWeek.week.targetKm, completedWorkouts: recent,
-      missedSessions: Number(data.get("missedSessions")),
-      painReported: data.get("pain") === "on",
-      unusualFatigue: data.get("fatigue") === "on"
+      missedSessions: Math.max(Number(data.get("missedSessions")), dailySummary.skippedSessions),
+      painReported: data.get("pain") === "on" || dailySummary.painReported,
+      unusualFatigue: data.get("fatigue") === "on" || dailySummary.unusualFatigue
     });
     const adjustment = applyAdjustment(runner.weeklyKm, review);
     const entry = {
