@@ -17,7 +17,7 @@ export function paceShiftFor(plan, date) {
   return (plan.adjustments ?? []).filter(a => a.paceShiftSec && inRange(a, date)).reduce((s, a) => s + a.paceShiftSec, 0);
 }
 export function pacesFor(plan, date) {
-  return buildPaces(plan.racePaceSec, paceShiftFor(plan, date), plan.goalPaceSec ?? plan.racePaceSec);
+  return buildPaces(plan.goalPaceSec ?? plan.racePaceSec, paceShiftFor(plan, date), plan.distance ?? "marathon");
 }
 
 // Seduta del giorno dopo gli aggiustamenti accettati.

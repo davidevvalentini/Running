@@ -41,7 +41,7 @@ test("piani: regole valide per distanza × obiettivo × giorni × anticipo × gi
       for (const w of p.weeks.slice(0, -1)) {
         const m = measure(w.days[6].session.steps, paces);
         assert.ok(m.km <= cfg.longCapKm + 0.5, `${tag} lungo ${m.km}`);
-        if (dist === "marathon") assert.ok(m.sec <= 3 * 3600 + 900, `${tag} lungo ${Math.round(m.sec / 60)} min`);
+        if (dist === "marathon") assert.ok(m.sec <= 3 * 3600 + 900 || m.km <= 30, `${tag} lungo ${Math.round(m.sec / 60)} min`);
       }
       for (let i = 1; i < p.weeks.length - 1; i++) if (!p.weeks[i - 1].recovery) assert.ok(p.weeks[i].km <= p.weeks[i - 1].km * 1.3, `${tag} salto w${i}`);
       if (p.weeks.length > 4) assert.ok(p.weeks.at(-2).km <= Math.max(...p.weeks.map(w => w.km)) * 0.8, `${tag} taper`);

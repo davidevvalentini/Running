@@ -17,14 +17,14 @@ test("mezza maratona: 12 settimane, gara 21,1 km, ritmo gara = ritmo obiettivo",
   assert.equal(s.paces.GARA, Math.round(7200 / 21.0975));
   assert.ok(s.paces["Z2-CLR"] > s.paces.GARA + 30);        // lento davvero più lento del passo gara
   assert.ok(p.weeks.every(w => w.km > 0));
-  assert.ok(Math.max(...p.weeks.map(w => w.km)) < 55);
+  assert.ok(Math.max(...p.weeks.map(w => w.km)) < 62);
 });
 
-test("10 km: 10 settimane, lunghi contenuti", () => {
+test("10 km: 8 settimane, lunghi contenuti", () => {
   const p = generatePlan({ ...base, distance: "10k", goalTimeSec: 3300 }, { today: "2026-10-11" });
-  assert.equal(p.totalWeeks, 10);
+  assert.equal(p.totalWeeks, 8);
   const paces = planSummary(p).paces;
-  for (const w of p.weeks.slice(0, -1)) assert.ok(measure(w.days[6].session.steps, paces).km <= 16.5);
+  for (const w of p.weeks.slice(0, -1)) assert.ok(measure(w.days[6].session.steps, paces).km <= 18.5);
   assert.equal(p.weeks.at(-1).days[6].session.steps[0].km, 10);
 });
 

@@ -42,7 +42,7 @@ async function createPlan(page, { distance = "marathon", goal = "4:00", extra = 
 }
 
 // 1. tre distanze
-for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona"], ["half", "2:00", 12, "Mezza maratona"], ["10k", "55:00", 10, "10 km"]]) {
+for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona"], ["half", "2:00", 12, "Mezza maratona"], ["10k", "55:00", 8, "10 km"]]) {
   const { ctx, page } = await newPage();
   await createPlan(page, { distance, goal });
   await page.click(".tab[data-tab=piano]");
@@ -142,6 +142,19 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
     assert.ok(over <= 0, `overflow ${tab}: ${over}px`);
   }
   ok("320 px senza overflow"); await ctx.close();
+}
+
+// 7. giorni consigliati per fascia
+{
+  const { ctx, page } = await newPage();
+  await page.selectOption("[name=distance]", "10k"); await page.fill("[name=goal]", "40:00");
+  assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "6");
+  assert.ok((await page.locator("#days-label").innerText()).includes("consigliati: 6")); ok("10 km in 40': consigliati 6 giorni");
+  await page.fill("[name=goal]", "55:00");
+  assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "4"); ok("10 km in 55': consigliati 4 giorni");
+  await page.selectOption("[name=daysAvailable]", "5"); await page.fill("[name=goal]", "40:00");
+  assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "5"); ok("scelta manuale dei giorni rispettata");
+  await ctx.close();
 }
 
 await browser.close(); server.close();

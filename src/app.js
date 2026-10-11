@@ -1,4 +1,4 @@
-import { generatePlan, planSummary, requiredAbilities, DISTANCES, wdShort } from "./domain/plan.js";
+import { generatePlan, planSummary, requiredAbilities, recommendedDays, DISTANCES, wdShort } from "./domain/plan.js";
 import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES } from "./domain/paces.js";
 import { expandSteps, notation } from "./domain/session.js";
 import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, weekAdherence } from "./domain/adapt.js";
@@ -255,7 +255,7 @@ function restoreProfile() {
   f.elements.distance.value = p.distance ?? "marathon"; syncGoalLabel();
   f.elements.goal.value = (p.distance ?? "marathon") === "10k" ? `${Math.floor(p.goalTimeSec / 60)}:${String(p.goalTimeSec % 60).padStart(2, "0")}` : `${Math.floor(p.goalTimeSec / 3600)}:${String(Math.floor((p.goalTimeSec % 3600) / 60)).padStart(2, "0")}`;
   f.elements.maxHr.value = p.maxHr ?? ""; f.elements.city.value = p.city ?? "";
-  f.elements.daysAvailable.value = String(p.daysAvailable);
+  f.elements.daysAvailable.value = String(p.daysAvailable); f.elements.daysAvailable.dataset.touched = "1";
   f.elements.weeklyKm.value = p.weeklyKm; f.elements.longestRunKm.value = p.longestRunKm;
   f.elements.recentRaceDistance.value = p.recentRaceDistanceKm ? String(p.recentRaceDistanceKm) : "";
   if (p.recentRaceTimeSec) { const s = p.recentRaceTimeSec; f.elements.recentRaceTime.value = s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
@@ -266,7 +266,18 @@ function syncGoalLabel() {
   $("#goal-label").textContent = tenk ? "Tempo obiettivo (mm:ss)" : "Tempo obiettivo (h:mm)";
   f.elements.goal.placeholder = tenk ? "es. 55:00" : f.elements.distance.value === "half" ? "es. 2:00" : "es. 4:00";
 }
-$("#profile-form").elements.distance.addEventListener("change", syncGoalLabel);
+function suggestDays() {
+  const f = $("#profile-form"), dist = f.elements.distance.value, cfg = DISTANCES[dist];
+  let goal = null;
+  try { goal = parseTime(f.elements.goal.value, { min: cfg.minGoal, max: cfg.maxGoal, what: "", twoParts: dist === "10k" ? "ms" : "hm" }); } catch { /* ancora incompleto */ }
+  if (!goal) { $("#days-label").textContent = "Giorni di corsa a settimana"; return; }
+  const rec = recommendedDays(dist, goal);
+  $("#days-label").textContent = `Giorni di corsa a settimana (consigliati: ${rec})`;
+  if (!f.elements.daysAvailable.dataset.touched) f.elements.daysAvailable.value = String(rec);
+}
+$("#profile-form").elements.daysAvailable.addEventListener("change", e => { e.target.dataset.touched = "1"; });
+$("#profile-form").elements.distance.addEventListener("change", () => { syncGoalLabel(); suggestDays(); });
+$("#profile-form").elements.goal.addEventListener("input", suggestDays);
 $("#profile-form").addEventListener("submit", e => {
   e.preventDefault();
   const f = e.currentTarget, err = $("#profile-error"); err.hidden = true; err.className = "note err";

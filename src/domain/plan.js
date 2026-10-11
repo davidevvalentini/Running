@@ -13,7 +13,9 @@ export { addDays };
 export const wdShort = iso => WEEKDAYS_SHORT[(new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7];
 
 // Giorni della settimana-tipo (0 = primo giorno, 6 = giorno di gara/lungo).
-const SLOTS = { easy: 1, quality: 2, easyB: 3, mid: 4, long: 6, easyC: 0 };
+const SLOTS_LONG = { easy: 1, quality: 2, easyB: 3, mid: 4, long: 6, easyC: 0 };
+// Mezza e 10 km: qualità il giovedì, corsa lenta il sabato (martedì/giovedì/sabato/domenica a 4 giorni).
+const SLOTS_SHORT = { easy: 1, quality: 3, easyB: 2, mid: 5, long: 6, easyC: 0 };
 
 // Qualità del mercoledì. ris/def sono km di riscaldamento/defaticamento.
 const Q = {
@@ -65,7 +67,7 @@ const REF_HALF = [
   { z2: 6, cl: 6, q: "CV3", lq: 10, name: "Tapering", phase: "taper", text: "I km calano: sentirsi strani è normale, stai assorbendo il lavoro." },
   { z2: 5, cl: 6, race: true, name: "Settimana di gara", phase: "taper", text: "Poco, rilassato, ben dormito. Domenica parti prudente e chiudi forte." }
 ];
-// 10 km: riferimento 55'00", 10 settimane.
+// 10 km: 8 settimane.
 const REF_10K = [
   { z2: 5, cl: 5, q: "B10x400", lq: 8, name: "Attivazione", phase: "base", text: "Prime ripetute corte e un lungo facile: costruisci la base." },
   { z2: 6, cl: 6, q: "M6x800", lq: 10, name: "Ripetute medie", phase: "base", text: "800 m tutte allo stesso ritmo, senza partire troppo forte." },
@@ -73,8 +75,6 @@ const REF_10K = [
   { z2: 5, cl: 5, q: "CM5", lq: 8, name: "Scarico", phase: "base", recovery: true, text: "Scarico: volume giù, gambe fresche per il blocco successivo." },
   { z2: 6, cl: 8, q: "M6x1k", lq: 12, name: "Specifico", phase: "build", text: "Si sale di intensità: ripetute da 1 km e lungo più lungo." },
   { z2: 8, cl: 8, q: "LL3", lq: 13, name: "Picco", phase: "build", text: "La settimana più carica: 3×2 km a ritmo sostenuto." },
-  { z2: 6, cl: 6, q: "CV4", lq: 10, name: "Scarico attivo", phase: "build", recovery: true, text: "Alleggerisci e recupera prima dell'ultimo blocco." },
-  { z2: 6, cl: 8, q: "M6x1k", lq: 12, name: "Ultimo blocco", phase: "specific", text: "Ultimo lavoro di qualità: mantieni la regolarità." },
   { z2: 5, cl: 6, q: "CV3", lq: 8, name: "Tapering", phase: "taper", text: "Pochi km, gambe fresche. Niente test: fidati del lavoro fatto." },
   { z2: 4, cl: 5, race: true, name: "Settimana di gara", phase: "taper", text: "Corri poco, dormi molto. Domenica è il tuo giorno." }
 ];
@@ -82,9 +82,29 @@ const REF_10K = [
 // Parametri per distanza di gara.
 export const DISTANCES = {
   marathon: { key: "marathon", label: "Maratona", km: 42.195, refSec: 4 * 3600, tpl: REF, minGoal: 2.5 * 3600, maxGoal: 6 * 3600, longCapKm: 32, extraWeeksBelow: 3.5 * 3600 },
-  half: { key: "half", label: "Mezza maratona", km: 21.0975, refSec: 2 * 3600, tpl: REF_HALF, minGoal: 4200, maxGoal: 3 * 3600, longCapKm: 22 },
-  "10k": { key: "10k", label: "10 km", km: 10, refSec: 3300, tpl: REF_10K, minGoal: 1800, maxGoal: 5400, longCapKm: 16 }
+  half: { key: "half", label: "Mezza maratona", km: 21.0975, refSec: 2 * 3600, tpl: REF_HALF, minGoal: 4200, maxGoal: 3 * 3600, longCapKm: 20 },
+  "10k": { key: "10k", label: "10 km", km: 10, refSec: 3300, tpl: REF_10K, minGoal: 1800, maxGoal: 5400, longCapKm: 18 }
 };
+
+// Media settimanale (km) dei piani di riferimento in funzione del ritmo gara (s/km), alla frequenza consigliata.
+const VOLUME_TARGETS = {
+  marathon: [[255.95, 67.2], [298.61, 63.9], [341.27, 51.4], [383.93, 49.0], [426.6, 48.9]],
+  half: [[255.99, 61.4], [298.61, 46.3], [341.27, 46.2], [383.93, 32.3], [426.6, 32.3]],
+  "10k": [[240, 64.8], [270, 51.6], [300, 39.1], [330, 36.1], [360, 31.5]]
+};
+const interp = (rows, x) => {
+  if (x <= rows[0][0]) return rows[0][1];
+  if (x >= rows.at(-1)[0]) return rows.at(-1)[1];
+  const i = rows.findIndex(r => r[0] >= x), [x0, y0] = rows[i - 1], [x1, y1] = rows[i];
+  return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+};
+// Giorni di corsa consigliati per fascia (come negli schemi di riferimento).
+export function recommendedDays(distance, goalSec) {
+  const cfg = DISTANCES[distance] ?? DISTANCES.marathon, pace = goalSec / cfg.km;
+  if (cfg.key === "marathon") return pace <= 300 ? 5 : 4;
+  if (cfg.key === "half") return pace <= 260 ? 5 : pace <= 345 ? 4 : 3;
+  return pace <= 245 ? 6 : pace <= 275 ? 5 : 4;
+}
 const RIEGEL = 1.06;
 export const equivalentSec = (sec, fromKm, toKm) => sec * Math.pow(toKm / fromKm, RIEGEL);
 
@@ -102,7 +122,7 @@ function qualitySession(key) {
 function scaleKm(km, f, min = 4) { return Math.max(min, Math.round(km * f)); }
 
 function longSession(spec, f, paces, cfg) {
-  const longCap = cfg.key === "marathon" ? Math.min(cfg.longCapKm, Math.floor(10800 / paces.LQ)) : cfg.longCapKm;
+  const longCap = cfg.key === "marathon" ? Math.min(cfg.longCapKm, Math.max(Math.floor(10800 / paces.LQ), paces.LQ >= 355 ? 30 : 0)) : cfg.longCapKm;
   let lq = scaleKm(spec.lq, f, 8);
   let tail = spec.tail ? [spec.tail[0], scaleKm(spec.tail[1], f, 2)] : null;
   let cd = spec.cd ? scaleKm(spec.cd, f, 1) : 0;
@@ -124,10 +144,11 @@ function easySession(code, km, title) { return { kind: "easy", title, steps: [ru
 
 function weekDays(spec, f, days, paces, cfg) {
   const out = Array(7).fill(null);
+  const SLOTS = cfg.key === "marathon" ? SLOTS_LONG : SLOTS_SHORT;
   if (spec.race) {
     out[SLOTS.easy] = easySession("CL", scaleKm(spec.cl, f, 5), "Corsa lenta");
     out[SLOTS.quality] = easySession("Z2-CLR", scaleKm(spec.z2, f, 4), "Corsa rigenerante");
-    out[SLOTS.mid] = easySession("Z2-CLR", scaleKm(spec.z2, f, 4), "Corsa rigenerante");
+    if (cfg.key === "marathon") out[SLOTS.mid] = easySession("Z2-CLR", scaleKm(spec.z2, f, 4), "Corsa rigenerante");
     out[SLOTS.long] = raceSession(cfg);
     if (days === 3) out[SLOTS.easy] = null;
     return out;
@@ -137,7 +158,7 @@ function weekDays(spec, f, days, paces, cfg) {
   out[SLOTS.quality] = qualitySession(spec.q);
   out[SLOTS.long] = longSession(spec, f, paces, cfg);
   if (days === 3) {
-    out[SLOTS.mid] = easySession("CL", cl + Math.round(z2 * 0.5), "Corsa lenta");
+    out[cfg.key === "marathon" ? SLOTS.mid : SLOTS.easy] = easySession("CL", cl + Math.round(z2 * 0.5), "Corsa lenta");
   } else {
     out[SLOTS.easy] = easySession("Z2-CLR", z2, "Corsa lenta rigenerante");
     out[SLOTS.mid] = easySession("CL", cl, "Corsa lenta");
@@ -214,11 +235,8 @@ export function generatePlan(profile, options = {}) {
   const weeksAvail = Math.floor((daysToRace + 1) / 7);
   if (weeksAvail < 4) throw new RangeError("Servono almeno 4 settimane piene prima della gara.");
 
-  // Le zone derivano dal ritmo equivalente sulla maratona; RG/gara dal ritmo obiettivo.
   const goalPace = profile.goalTimeSec / cfg.km;
-  const basePace = equivalentSec(profile.goalTimeSec, cfg.km, 42.195) / 42.195;
-  const paces = buildPaces(basePace, 0, goalPace);
-  const f = volumeFactor(profile.goalTimeSec, cfg.refSec);
+  const paces = buildPaces(goalPace, 0, cfg.key);
   const tplWeeks = [];
   if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
     // Due settimane di ingresso, più leggere, prima del blocco standard.
@@ -226,6 +244,13 @@ export function generatePlan(profile, options = {}) {
     tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso progressivo", lq: 12, z2: 8, cl: 8, q: "B10x400", text: "Seconda settimana di ingresso: prime ripetute corte, ancora senza spingere." });
   }
   tplWeeks.push(...cfg.tpl);
+  // Volume: si scala il modello perché la media settimanale coincida con quella dei piani di riferimento
+  // per la fascia (alla frequenza consigliata, corretta per i giorni scelti).
+  const rec = recommendedDays(cfg.key, profile.goalTimeSec);
+  const target = interp(VOLUME_TARGETS[cfg.key], goalPace) * Math.pow(profile.daysAvailable / rec, 0.8);
+  const avgAt = fv => tplWeeks.reduce((sum, spec) => sum + weekDays(spec, fv, profile.daysAvailable, paces, cfg).reduce((a, sess) => a + (sess ? measure(sess.steps, paces).km : 0), 0), 0) / tplWeeks.length;
+  let f = 1;
+  for (let i = 0; i < 8; i++) { const avg = avgAt(f); if (Math.abs(avg / target - 1) < 0.01) break; f = clamp(f * target / avg, 0.5, 1.8); }
   const n = Math.min(tplWeeks.length, weeksAvail);
   const used = tplWeeks.slice(tplWeeks.length - n);
   const startDate = addDays(profile.raceDate, -(n * 7 - 1));
@@ -248,7 +273,7 @@ export function generatePlan(profile, options = {}) {
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,
-    startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: basePace, goalPaceSec: goalPace,
+    startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: goalPace, goalPaceSec: goalPace,
     daysPerWeek: profile.daysAvailable, totalWeeks: n, status: "active", weeks, warnings,
     adjustments: [], feasibility: assessFeasibility(profile, week1Info, cfg.km),
     disclaimer: "Piano indicativo, non consulto medico né coaching validato clinicamente. Interrompi in caso di dolore o sintomi insoliti. L'esito in gara non è garantito."
@@ -256,7 +281,7 @@ export function generatePlan(profile, options = {}) {
 }
 
 export function planSummary(plan) {
-  const paces = buildPaces(plan.racePaceSec, 0, plan.goalPaceSec ?? plan.racePaceSec);
+  const paces = buildPaces(plan.goalPaceSec ?? plan.racePaceSec, 0, plan.distance ?? "marathon");
   const peak = plan.weeks.reduce((a, w) => (w.km > a.km ? w : a), plan.weeks[0]);
   const total = round1(plan.weeks.reduce((s, w) => s + w.km, 0));
   return { totalKm: total, avgKm: round1(total / plan.weeks.length), peakWeek: peak.week, peakKm: peak.km, paces };
