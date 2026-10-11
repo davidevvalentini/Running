@@ -281,3 +281,23 @@ test("specific long runs only add a controlled finish for established runners", 
   const beginner = generatePlan(runner({weeklyKm: 10, longestRunKm: 6, level:"beginner"}), {today:"2026-10-11"});
   assert.ok(beginner.weeks.flatMap(w=>w.sessions).filter(s=>s.type==="long").every(s=>!/Lungo progressivo controllato/.test(s.structure.mainSet)));
 });
+
+test("quality sessions expose quantifiable repetitions and recovery distances", () => {
+  const plan = generatePlan(runner({
+    level: "advanced", weeklyKm: 55, longestRunKm: 24, daysAvailable: 5
+  }), { today: "2026-10-11" });
+  const quality = plan.weeks.flatMap(week => week.sessions)
+    .filter(session => ["intervals", "threshold"].includes(session.type));
+  assert.ok(quality.length > 0);
+  for (const session of quality) {
+    const set = session.structure.setDetails;
+    assert.ok(set);
+    assert.equal(set.repetitions >= 1, true);
+    assert.ok(set.workDistanceKm > 0);
+    assert.ok(set.recoveryDistanceKm > 0);
+    assert.equal(set.recoveryCount, set.repetitions - 1);
+    const fastDistance = set.repetitions * set.workDistanceKm;
+    const recoveryDistance = set.recoveryCount * set.recoveryDistanceKm;
+    assert.ok(fastDistance + recoveryDistance <= session.structure.mainKm + 0.01);
+  }
+});

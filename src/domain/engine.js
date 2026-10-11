@@ -82,13 +82,16 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
   const cooldownKm = round1(total * 0.2);
   const mainKm = round1(Math.max(0, total - warmupKm - cooldownKm));
   let mainSet;
+  let setDetails = null;
   if (type === "intervals") {
     const reps = Math.min(8, Math.floor((mainKm + 0.2) / 0.6));
+    if (reps >= 2) setDetails = { kind: "intervals", repetitions: reps, workDistanceKm: 0.4, recoveryDistanceKm: 0.2, recoveryCount: reps - 1, recoveryIntensity: "corsa molto facile", workIntensityRpe: 7 };
     mainSet = reps >= 2
       ? `Parte centrale: ${reps} × 400 m sostenuti ma controllati (RPE 7/10)${paceZones?.labels.intervals ? `; riferimento indicativo ${paceZones.labels.intervals} min/km` : ""}, con 200 m di corsa molto facile tra le prove. Il chilometraggio residuo della parte centrale è facile; niente sprint.`
       : "Distanza insufficiente per una serie di ripetute completa: trasforma la seduta in corsa facile, senza comprimere riscaldamento o defaticamento.";
   } else if (type === "threshold") {
     const reps = Math.min(4, Math.floor((mainKm + 0.4) / 1.4));
+    if (reps >= 1) setDetails = { kind: "threshold", repetitions: reps, workDistanceKm: 1, recoveryDistanceKm: 0.4, recoveryCount: Math.max(0, reps - 1), recoveryIntensity: "corsa facile", workIntensityRpe: 6 };
     mainSet = reps >= 1
       ? `Parte centrale: ${reps} × 1 km a soglia controllata (RPE 6/10)${paceZones?.labels.threshold ? `; riferimento indicativo ${paceZones.labels.threshold} min/km` : ""}, con 400 m di corsa facile dopo ogni prova tranne l'ultima. Il chilometraggio residuo è facile.`
       : "La seduta è troppo breve per ripetute di soglia con recupero adeguato: svolgi la parte centrale a ritmo facile e non forzare.";
@@ -97,7 +100,7 @@ function sessionStructure(type, km, paceZones = null, options = {}) {
       ? `Parte centrale a ritmo maratona ${paceZones.labels.targetMarathon ?? paceZones.labels.marathon} min/km ${paceZones.labels.targetMarathon ? "come obiettivo da verificare gradualmente, non da forzare" : "stimato"}; se il ritmo non è sostenibile, rallenta o corri facile. ${paceZones.labels.targetMarathon ? "Il ritmo obiettivo non dimostra che il tempo gara sia raggiungibile." : "Stima teorica da gara recente, da validare in allenamento."}`
       : "Parte centrale a ritmo maratona solo se il ritmo obiettivo deriva da una gara recente o da una valutazione attendibile; altrimenti svolgila a ritmo facile (RPE 3–4/10). Non inseguire un ritmo ipotetico.";
   }
-  return { warmupKm, mainKm, cooldownKm, mainSet };
+  return { warmupKm, mainKm, cooldownKm, mainSet, ...(setDetails ? { setDetails } : {}) };
 }
 
 function workout(type, km, effort, note = "", paceZones = null, structureOptions = {}) {

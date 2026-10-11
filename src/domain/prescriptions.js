@@ -24,11 +24,17 @@ export function buildSessionPrescription(session) {
   let effort = session.effort || "RPE 3–4/10";
   let title = "Parte centrale";
   if (session.type === "intervals") {
-    title = "Ripetute controllate";
+    const set = s.setDetails;
+    title = set?.kind === "intervals"
+      ? `Ripetute controllate · ${set.repetitions} × ${Math.round(set.workDistanceKm * 1000)} m / ${Math.round(set.recoveryDistanceKm * 1000)} m facile`
+      : "Ripetute controllate";
     effort = "RPE 7/10, mai massimale";
     instruction = instruction + " Recupero in corsa facile: devi ripartire con controllo, non affannato.";
   } else if (session.type === "threshold") {
-    title = "Soglia controllata";
+    const set = s.setDetails;
+    title = set?.kind === "threshold"
+      ? `Soglia controllata · ${set.repetitions} × ${Math.round(set.workDistanceKm * 1000)} m / ${Math.round(set.recoveryDistanceKm * 1000)} m facile`
+      : "Soglia controllata";
     effort = "RPE 6/10";
     instruction = instruction + " Prevedi recupero in corsa facile tra i blocchi; il ritmo deve restare uniforme e sostenibile. Interrompi la parte intensa se perdi controllo.";
   } else if (session.type === "marathon_pace") {
