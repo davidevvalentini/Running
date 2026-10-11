@@ -8,6 +8,9 @@ App web statica (nessuna dipendenza a runtime) per preparare maratona, mezza mar
 - **Adattamenti**: dai riscontri nascono *proposte* motivate (alleggerire, sostituire la qualità, rallentare/alzare i ritmi, aderenza bassa). Si applicano solo su conferma; i km saltati non si recuperano mai; il dolore sospende il piano.
 - **Progressi**: aderenza settimanale, riscontri, registrazione manuale e import GPX/TCX/CSV.
 
+## Livello di partenza: test iniziali
+I km a settimana non sono un input: dipendono dalla fase del piano. Il livello si stabilisce con due test (scheda Oggi, prime due settimane): 30' di corsa facile (ritmo facile e base aerobica) e 5 km a ritmo massimo (passo gara realistico, previsioni su 10 km/mezza/maratona). Dalla valutazione nascono proposte applicabili su conferma: obiettivo realistico (rigenera il piano) e partenza cauta (−15% nelle prime due settimane).
+
 ## Funzioni aggiuntive
 - **Export .FIT** di ogni seduta strutturata (riscaldamento, ripetute con recuperi, defaticamento, target di ritmo) da caricare su Garmin/Coros/Wahoo. Verificato col decoder ufficiale `@garmin/fitsdk`, non ancora provato su un orologio reale.
 - **Import .FIT** delle attività (solo corsa), oltre a GPX/TCX/CSV.

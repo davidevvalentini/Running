@@ -99,7 +99,7 @@ test("stato salvato: i piani validi sopravvivono, i dati sporchi vengono scartat
   assert.equal(sanitize({ plan: { id: "x" } }).plan, null);
   const s = sanitize({ workouts: [null, { date: 5 }, {}, { id: "a", date: "2026-11-01", distanceKm: 5 }, { id: "b", date: "2026-11-01", distanceKm: "5" }], feedback: [null, { date: "2026-11-01" }], dismissed: [1, "x"], savedAt: "boh" });
   assert.deepEqual([s.workouts.length, s.feedback.length, s.dismissed, s.savedAt], [1, 0, ["x"], 0]);
-  assert.deepEqual(sanitize(null), { profile: null, plan: null, workouts: [], feedback: [], dismissed: [], savedAt: 0 });
+  assert.deepEqual(sanitize(null), { profile: null, plan: null, workouts: [], feedback: [], dismissed: [], tests: [], savedAt: 0 });
 });
 
 test("FIT: file corrotti (anche con CRC rifatto) non mandano in crash il decoder", () => {

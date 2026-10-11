@@ -50,17 +50,23 @@
     <section id="view-profilo" class="view" hidden>
       <div class="card">
         <h2>Il tuo obiettivo</h2>
-        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi e lunghi si adattano al tempo obiettivo. La città serve solo a mostrare le previsioni (servizio Open-Meteo).</p>
+        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi (che crescono con la fase del piano) e lunghi si adattano al tempo obiettivo. Livello di partenza e passo gara realistico si stabiliscono con i test iniziali, nella scheda Oggi. La città serve solo a mostrare le previsioni (servizio Open-Meteo).</p>
         <form id="profile-form" class="form">
           <div class="grid2">
             <label>Gara<select name="distance"><option value="marathon">Maratona</option><option value="half">Mezza maratona</option><option value="10k">10 km</option></select></label>
             <label>Data della gara<input type="date" name="raceDate" required></label>
-            <label><span id="goal-label">Tempo obiettivo (h:mm)</span><input type="text" name="goal" inputmode="numeric" placeholder="es. 4:00" required></label>
+            <fieldset class="time-set"><legend id="goal-label">Tempo obiettivo</legend>
+              <label data-part="h">ore<input type="number" inputmode="numeric" name="goalH" min="0" max="9" step="1" placeholder="4"></label>
+              <label data-part="m">minuti<input type="number" inputmode="numeric" name="goalM" min="0" max="59" step="1" placeholder="00"></label>
+              <label data-part="s" hidden>secondi<input type="number" inputmode="numeric" name="goalS" min="0" max="59" step="1" placeholder="00"></label>
+            </fieldset>
             <label><span id="days-label">Giorni di corsa a settimana</span><select name="daysAvailable"><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label>
-            <label>Km in una settimana tipica<input type="number" name="weeklyKm" min="0" max="300" step="0.5" value="30" required></label>
-            <label>Lungo più recente (km)<input type="number" name="longestRunKm" min="0" max="100" step="0.5" value="16" required></label>
             <label>Gara recente (facoltativa)<select name="recentRaceDistance"><option value="">Nessuna</option><option value="5">5 km</option><option value="10">10 km</option><option value="21.0975">Mezza maratona</option></select></label>
-            <label>Tempo gara recente<input type="text" name="recentRaceTime" inputmode="numeric" placeholder="es. 52:30 o 1:55:00"></label>
+            <fieldset class="time-set"><legend>Tempo gara recente</legend>
+              <label>ore<input type="number" inputmode="numeric" name="raceH" min="0" max="8" step="1" placeholder="0"></label>
+              <label>minuti<input type="number" inputmode="numeric" name="raceM" min="0" max="59" step="1" placeholder="52"></label>
+              <label>secondi<input type="number" inputmode="numeric" name="raceS" min="0" max="59" step="1" placeholder="30"></label>
+            </fieldset>
             <label>FC massima (facoltativa)<input type="number" name="maxHr" min="120" max="230" step="1" placeholder="es. 188"></label>
             <label>Città per il meteo (facoltativa)<input type="text" name="city" maxlength="60" placeholder="es. Milano"></label>
           </div>

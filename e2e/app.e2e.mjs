@@ -33,9 +33,15 @@ async function newPage(now = "2026-10-11T08:00:00") {
   await page.goto(base);
   return { ctx, page, setNow: async iso => { await ctx.clock.setFixedTime(new Date(iso)); await page.reload(); } };
 }
+// Obiettivo: "h:mm" per maratona/mezza, "mm:ss" per i 10 km (campi separati, come sul telefono).
+async function setGoal(page, distance, text) {
+  const [a, b] = text.split(":");
+  if (distance === "10k") { await page.fill("[name=goalM]", a); await page.fill("[name=goalS]", b ?? "0"); }
+  else { await page.fill("[name=goalH]", a); await page.fill("[name=goalM]", b ?? "0"); }
+}
 async function createPlan(page, { distance = "marathon", goal = "4:00", extra = {} } = {}) {
   await page.selectOption("[name=distance]", distance);
-  await page.fill("[name=raceDate]", "2027-01-31"); await page.fill("[name=goal]", goal);
+  await page.fill("[name=raceDate]", "2027-01-31"); await setGoal(page, distance, goal);
   for (const [k, v] of Object.entries(extra)) await page.fill(`[name=${k}]`, v);
   await page.click("#profile-form button[type=submit]");
   await page.waitForSelector("#view-oggi:not([hidden])");
@@ -68,6 +74,7 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   assert.ok(decodeFit(bytes).some(m => m.num === 27)); ok("scarico .FIT valido (CRC e step)");
 
   await page.click(".tab[data-tab=piano]");
+  await page.locator("#view-piano summary", { hasText: "Ritmi e zone" }).click();
   assert.ok((await page.locator("#view-piano").innerText()).includes("139–152 bpm")); ok("zone cardiache personali");
 
   await page.click(".tab[data-tab=oggi]");
@@ -113,7 +120,7 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
 // 4. gara di sabato: le etichette dei giorni seguono le date reali
 {
   const { ctx, page } = await newPage();
-  await page.fill("[name=raceDate]", "2027-01-30"); await page.fill("[name=goal]", "4:00");
+  await page.fill("[name=raceDate]", "2027-01-30"); await setGoal(page, "marathon", "4:00");
   await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
   await page.click(".tab[data-tab=piano]");
   const labels = await page.locator("details.week").last().evaluate(el => { el.open = true; return [...el.querySelectorAll(".day .dn")].map(d => d.textContent.trim().slice(0, 2)); });
@@ -147,13 +154,46 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
 // 7. giorni consigliati per fascia
 {
   const { ctx, page } = await newPage();
-  await page.selectOption("[name=distance]", "10k"); await page.fill("[name=goal]", "40:00");
+  await page.selectOption("[name=distance]", "10k"); await setGoal(page, "10k", "40:00");
   assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "6");
   assert.ok((await page.locator("#days-label").innerText()).includes("consigliati: 6")); ok("10 km in 40': consigliati 6 giorni");
-  await page.fill("[name=goal]", "55:00");
+  await setGoal(page, "10k", "55:00");
   assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "4"); ok("10 km in 55': consigliati 4 giorni");
-  await page.selectOption("[name=daysAvailable]", "5"); await page.fill("[name=goal]", "40:00");
+  await page.selectOption("[name=daysAvailable]", "5"); await setGoal(page, "10k", "40:00");
   assert.equal(await page.locator("[name=daysAvailable]").inputValue(), "5"); ok("scelta manuale dei giorni rispettata");
+  await ctx.close();
+}
+
+// 8. campi tempo separati e senza km settimanali nel profilo
+{
+  const { ctx, page } = await newPage();
+  assert.equal(await page.locator("[name=weeklyKm], [name=longestRunKm]").count(), 0); ok("nessun input di km settimanali");
+  assert.equal(await page.locator("[name=goalH]").getAttribute("inputmode"), "numeric");
+  assert.equal(await page.locator("[name=goalS]").isVisible(), false);
+  await page.selectOption("[name=distance]", "10k");
+  assert.equal(await page.locator("[name=goalH]").isVisible(), false); assert.equal(await page.locator("[name=goalS]").isVisible(), true); ok("campi ore/minuti o minuti/secondi per distanza");
+  await ctx.close();
+}
+
+// 9. test iniziali: livello, valutazione obiettivo e proposta di obiettivo realistico
+{
+  const { ctx, page } = await newPage();
+  await createPlan(page, { goal: "4:00" });
+  assert.ok((await page.locator("#view-oggi").innerText()).includes("Test iniziali")); ok("test iniziali proposti prima della partenza");
+  await page.locator("#view-oggi summary", { hasText: "Come si fa" }).first().click();
+  await page.fill('#view-oggi form[data-test=base30] [name=distanceKm]', "3.6"); await page.selectOption('#view-oggi form[data-test=base30] [name=rpe]', "7");
+  await page.click('#view-oggi form[data-test=base30] button[type=submit]'); await page.waitForTimeout(150);
+  assert.ok((await page.locator("#view-oggi").innerText()).includes("Parti con volumi ridotti")); ok("base debole: proposta di partire con volumi ridotti");
+  await page.locator("#view-oggi summary", { hasText: "Come si fa" }).first().click();
+  await page.fill('#view-oggi form[data-test=tt5k] [name=min]', "28"); await page.fill('#view-oggi form[data-test=tt5k] [name=sec]', "0"); await page.selectOption('#view-oggi form[data-test=tt5k] [name=rpe]', "9");
+  await page.click('#view-oggi form[data-test=tt5k] button[type=submit]'); await page.waitForTimeout(150);
+  const txt = await page.locator("#view-oggi").innerText();
+  assert.ok(/fuori portata/i.test(txt)); ok("5 km in 28': obiettivo 4h valutato fuori portata");
+  assert.ok(txt.includes("Obiettivo realistico")); 
+  await page.locator("#view-oggi .proposal", { hasText: "Obiettivo realistico" }).locator("[data-accept]").click(); await page.waitForTimeout(250);
+  await page.click(".tab[data-tab=piano]");
+  const goalText = await page.locator("#view-piano .kv").first().innerText();
+  assert.ok(!goalText.includes("4h 00'")); ok("accettato: piano rigenerato con obiettivo realistico");
   await ctx.close();
 }
 
