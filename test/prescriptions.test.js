@@ -43,7 +43,8 @@ test("shows exact repetition and recovery distances when structured set details 
       setDetails: { kind: "intervals", repetitions: 5, workDistanceKm: 0.4, recoveryDistanceKm: 0.2, recoveryCount: 4 }
     }
   });
-  assert.match(intervals.steps[1].title, /5 × 400 m \/ 200 m facile/);
+  assert.match(intervals.steps.find(step => step.kind === "work").title, /Ripetuta 1\/5 · 400 m/);
+  assert.equal(intervals.steps.filter(step => step.kind === "recovery").length, 4);
   const threshold = buildSessionPrescription({
     type: "threshold", distanceKm: 8, effort: "controlled",
     structure: {
@@ -52,7 +53,8 @@ test("shows exact repetition and recovery distances when structured set details 
       setDetails: { kind: "threshold", repetitions: 3, workDistanceKm: 1, recoveryDistanceKm: 0.4, recoveryCount: 2 }
     }
   });
-  assert.match(threshold.steps[1].title, /3 × 1000 m \/ 400 m facile/);
+  assert.match(threshold.steps.find(step => step.kind === "work").title, /Ripetuta 1\/3 · 1000 m/);
+  assert.equal(threshold.steps.filter(step => step.kind === "recovery").length, 2);
 });
 
 
