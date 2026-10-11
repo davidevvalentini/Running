@@ -15,6 +15,9 @@ App web statica (nessuna dipendenza a runtime) per preparare maratona, mezza mar
 - **Zone cardiache personali** (FC massima nel profilo), **carico settimanale** (minuti × RPE) e **meteo** con consigli (città nel profilo, servizio Open-Meteo).
 - **Mezza maratona e 10 km** oltre alla maratona.
 
+## Calibrazione sui piani di riferimento
+Ritmi per tipologia, volume medio settimanale, lunghi massimi, durata e giorni consigliati sono calibrati su 16 piani pubblici di GoAndRace (maratona 3:00–5:00, mezza 1:30–2:30, 10 km 40'–60'); `test/reference.test.js` li confronta con i numeri misurati in `test/fixtures/reference.json` (solo valori numerici). Le sedute e i testi sono originali. Scarti noti: 10 km sotto i 40' a 6 giorni (−12% di km) e mezza a 3 giorni a 2h00 (−7%); i picchi settimanali dei piani veloci sono più marcati (fino a +10%).
+
 Non incluse: sincronizzazione automatica con Garmin Connect e Strava (richiedono un'app registrata presso i rispettivi servizi).
 
 ## Sviluppo

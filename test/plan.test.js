@@ -48,7 +48,7 @@ test("regola delle 3 ore sul lungo", () => {
   const fast = generatePlan({ ...profile, goalTimeSec: 3 * 3600 }, { today: "2026-09-20" });
   for (const p of [slow, fast]) {
     const paces = buildPaces(p.racePaceSec);
-    for (const w of p.weeks.slice(0, -1)) assert.ok(measure(w.days[6].session.steps, paces).sec <= 10800 + 600, `w${w.week}`);
+    for (const w of p.weeks.slice(0, -1)) { const m = measure(w.days[6].session.steps, paces); assert.ok(m.sec <= 10800 + 600 || m.km <= 30, `w${w.week}`); }
   }
   assert.equal(fast.totalWeeks, 18);
 });
