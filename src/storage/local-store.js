@@ -1,38 +1,26 @@
-const STORAGE_KEY = "running-planner:v1";
+const STORAGE_KEY = "running-planner:v2";
+const EMPTY = () => ({ profile: null, plan: null, workouts: [], feedback: [], dismissed: [], savedAt: 0 });
 
 export function createLocalStore(storage = globalThis.localStorage) {
-  function read() {
-    if (!storage) return { runners: [], plans: [], workouts: [], adjustments: [] };
-    try {
-      const parsed = JSON.parse(storage.getItem(STORAGE_KEY) ?? "{}");
-      return {
-        runners: Array.isArray(parsed.runners) ? parsed.runners : [],
-        plans: Array.isArray(parsed.plans) ? parsed.plans : [],
-        workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
-        adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : []
-      };
-    } catch {
-      // Corrupt local state is not trusted or executed.
-      return { runners: [], plans: [], workouts: [], adjustments: [] };
-    }
-  }
+  const sanitize = parsed => ({
+    profile: parsed.profile && typeof parsed.profile === "object" ? parsed.profile : null,
+    plan: parsed.plan && Array.isArray(parsed.plan.weeks) ? parsed.plan : null,
+    workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
+    feedback: Array.isArray(parsed.feedback) ? parsed.feedback : [],
+    dismissed: Array.isArray(parsed.dismissed) ? parsed.dismissed : [],
+    savedAt: Number.isFinite(parsed.savedAt) ? parsed.savedAt : 0
+  });
   return {
-    read,
+    read() {
+      if (!storage) return EMPTY();
+      try { return sanitize(JSON.parse(storage.getItem(STORAGE_KEY) ?? "{}")); } catch { return EMPTY(); }
+    },
     write(state) {
-      if (!storage) throw new Error("Browser storage is unavailable.");
-      if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("State must be an object.");
-      const safe = {
-        runners: Array.isArray(state.runners) ? state.runners : [],
-        plans: Array.isArray(state.plans) ? state.plans : [],
-        workouts: Array.isArray(state.workouts) ? state.workouts : [],
-        adjustments: Array.isArray(state.adjustments) ? state.adjustments : []
-      };
+      if (!storage) throw new Error("Archivio del browser non disponibile.");
+      const safe = sanitize(state ?? {});
       storage.setItem(STORAGE_KEY, JSON.stringify(safe));
       return safe;
     },
-    clear() {
-      if (!storage) return;
-      storage.removeItem(STORAGE_KEY);
-    }
+    clear() { storage?.removeItem(STORAGE_KEY); }
   };
 }

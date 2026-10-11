@@ -1,49 +1,18 @@
-# Running — Marathon Planner
+# Running — Piano maratona
 
-A responsive, local-first web prototype for building and reviewing a marathon-training plan.
+App web statica (nessuna dipendenza a runtime) per preparare una maratona: piano settimanale dettagliato a partire da data gara e tempo obiettivo, seduta del giorno e adattamento in base ai riscontri.
 
-## Try it locally
+## Cosa fa
+- **Piano**: 16 settimane (18 per obiettivi sotto 3h30), 3–6 giorni/settimana, calcolato all'indietro dalla data gara. Per ogni seduta: notazione compatta (`3 km RIS + 6 x (0,8 km RipM + 2'30" REC_M) + 1 km DEF`), passi dettagliati, ritmo per tipologia, durata e media. Riepilogo (km totali, media, picco), capacità richieste (VMA, 5k/10k/mezza), probabilità di successo, zone, regola delle 3 ore sul lungo. Se mancano settimane il piano parte dalla fase corrispondente.
+- **Oggi**: la seduta del giorno con i passi e il feedback ("com'è andata davvero"): esito, distanza, durata, RPE, fatica, dolore.
+- **Adattamenti**: dai riscontri nascono *proposte* motivate (alleggerire, sostituire la qualità, rallentare/alzare i ritmi, aderenza bassa). Si applicano solo su conferma; i km saltati non si recuperano mai; il dolore sospende il piano.
+- **Progressi**: aderenza settimanale, riscontri, registrazione manuale e import GPX/TCX/CSV.
 
-Requires Node.js 20+ for the test suite. The app itself has no runtime dependencies.
-
+## Sviluppo
 ```sh
-python3 -m http.server 8000
+python3 -m http.server 8000   # poi http://localhost:8000
+npm test                      # node --test (Node 20+)
 ```
+Dominio in `src/domain/` (`paces`, `session`, `plan`, `adapt`), interfaccia in `src/app.js`. Lo stato sta in `localStorage`; se esiste `/api/running-state` (Second Brain) viene specchiato lì (vince il `savedAt` più recente).
 
-Open [http://localhost:8000](http://localhost:8000) in your browser. Serve the directory over HTTP rather than opening `index.html` as a `file://` URL, because the app uses JavaScript modules.
-
-Run the tests:
-
-```sh
-npm test
-```
-
-## Current features
-- Italian responsive interface for runner profile and race date.
-- Optional marathon goal time, plus a recent 5 km, 10 km or half-marathon result to estimate indicative pace bands (easy/long, theoretical marathon pace, threshold and intervals).
-- Deterministic plan generation with base, build, specific and taper phases where the remaining horizon allows it.
-- Day-labelled weekly sessions with structured warm-up, main block and cool-down steps, per-block distance, effort cues, and concrete instructions for easy, run/walk, long and quality workouts. Interval and threshold sessions expose machine-readable repetition counts, work distances, recovery distances and effort targets; the daily prescription expands each work repetition and recovery into its own ordered step, with any remaining easy distance shown separately. Quality repetitions are capped to fit the main block; established runners may get an optional controlled finish on sufficiently long specific-phase runs.
-- Manual activity logging with distance, duration, RPE and notes, plus a dedicated daily **Seduta** view that shows today's planned workout and records actual completion feedback.
-- GPX, TCX and CSV import preview, validation and explicit confirmation before persistence. FIT is not enabled until a maintained decoder is integrated and tested.
-- Weekly review based on recorded activity, perceived effort, missed sessions, unusual fatigue and pain/symptom flags.
-- Versioned plan history and explainable adjustment records.
-- Browser-local persistence and JSON export. Data is not sent to a server.
-
-## Safety and limitations
-This is an early software prototype, not a validated coaching system, medical device, or medical advice. The plan engine is deliberately conservative but has not been clinically or scientifically validated. It cannot establish marathon readiness, diagnose injury, or guarantee a safe finish. If pain or concerning symptoms are present, progression is blocked and appropriate professional advice is recommended. Missed sessions are never added to future weeks as catch-up mileage.
-
-The plan now gives day-labelled sessions and concrete instructions with effort cues, but it can estimate indicative pace bands from a recent 5 km, 10 km or half-marathon result using a distance-time projection. These are rough estimates, not measured physiological thresholds, and a theoretical marathon pace can be optimistic. Do not force the suggested paces; effort, talk test, conditions and recovery take priority. Quality-session examples remain conservative templates, not a validated individualized prescription.
-
-## Data model
-- Runner profile: ability band, current weekly volume, longest recent run, days available, race date and optional recent pace.
-- Training plan: version, context, phase-labelled weeks, sessions, warnings and disclaimer.
-- Completed workout: date, distance and/or duration, RPE, source, notes and optional external identifier.
-- Adjustment: deterministic decision, evidence summary, reason and resulting load.
-
-## Project structure
-- `src/domain/`: data validation and deterministic plan/review engine.
-- `src/import/`: activity import preview and normalization.
-- `src/storage/`: browser-local persistence.
-- `src/app.js`, `index.html`, `styles.css`: client-side interface.
-- `test/`: automated engine, safety and import tests.
-- `.github/workflows/test.yml`: CI test workflow.
+Non è un sistema di coaching validato né consulto medico.
