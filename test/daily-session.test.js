@@ -39,7 +39,7 @@ test("does not offer weekday sessions that fall before a midweek plan start", ()
   assert.equal(thursday.nextSession.day, "Sabato");
   const sunday = getDailySessionContext(midweekPlan, "2026-10-18");
   assert.equal(sunday.session, null);
-  assert.equal(sunday.nextSession, null);
+  assert.equal(sunday.nextSession.day, "Martedì");
 });
 
 test("returns no context before plan start and identifies plan completion", () => {
