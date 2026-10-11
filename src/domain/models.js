@@ -18,6 +18,7 @@ export function validateRunner(input) {
   if (!Number.isInteger(input.daysAvailable) || input.daysAvailable < 1 || input.daysAvailable > 7) errors.push("daysAvailable must be an integer from 1 to 7.");
   if (!isValidISODate(input.raceDate)) errors.push("raceDate must be a real calendar date in YYYY-MM-DD format.");
   if (input.recentPaceSecPerKm != null && (!Number.isFinite(input.recentPaceSecPerKm) || input.recentPaceSecPerKm < 150 || input.recentPaceSecPerKm > 1200)) errors.push("recentPaceSecPerKm must be between 150 and 1200.");
+  if (input.goalMarathonTimeSec != null && (!Number.isFinite(input.goalMarathonTimeSec) || input.goalMarathonTimeSec < 2 * 3600 || input.goalMarathonTimeSec > 8 * 3600)) errors.push("goalMarathonTimeSec must be between 2 and 8 hours.");
   const hasRaceDistance = input.recentRaceDistanceKm != null && input.recentRaceDistanceKm !== "";
   const hasRaceTime = input.recentRaceTimeSec != null && input.recentRaceTimeSec !== "";
   if (hasRaceDistance !== hasRaceTime) errors.push("recentRaceDistanceKm and recentRaceTimeSec must be supplied together.");
