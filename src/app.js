@@ -93,6 +93,7 @@ function currentProposals() {
   const feedback = [...state.feedback].sort((a, b) => b.date.localeCompare(a.date));
   return [...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
 }
+const EXTRA = { kind: "extra", title: "Corsa fuori programma", km: 0, sec: 0, avgPaceSec: 0 };
 const doneKm = date => state.workouts.filter(w => w.date === date).reduce((s, w) => s + (w.distanceKm ?? 0), 0);
 
 /* ---------- OGGI ---------- */
@@ -106,7 +107,7 @@ function renderOggi() {
   if (loc.state === "before") {
     const n = nextSession(plan, t) ?? { day: plan.weeks[0].days.find(d => d.session) };
     const first = plan.weeks[0].days.find(d => d.session), eff = effectiveSession(plan, first);
-    html += `<div class="card"><h2>Il piano inizia tra ${loc.daysToStart} ${loc.daysToStart === 1 ? "giorno" : "giorni"}</h2><p class="note">Prima seduta: ${esc(WEEKDAYS_SHORT[first.dayIndex])} ${fmtDate(first.date)}.</p><h3 class="session-title">${esc(eff.title)}</h3>${sessionBlock(eff)}</div>`;
+    html += `<div class="card"><h2>Il piano inizia tra ${loc.daysToStart} ${loc.daysToStart === 1 ? "giorno" : "giorni"}</h2><p class="note">Prima seduta: ${esc(WEEKDAYS_SHORT[first.dayIndex])} ${fmtDate(first.date)}.</p><h3 class="session-title">${esc(eff.title)}</h3>${sessionBlock(eff)}</div><div class="card"><h2>Hai già corso?</h2><p class="note">Il piano non è ancora iniziato, ma puoi registrare lo stesso un allenamento: servirà a valutare la tua base.</p><p><button class="btn secondary" data-goto="progressi" type="button">Registra un allenamento</button></p></div>`;
     void n;
   } else if (loc.state === "after") {
     html += `<div class="card"><h2>Piano concluso</h2><p class="note">Il periodo del piano è terminato. Nel profilo puoi crearne uno nuovo per il prossimo obiettivo.</p></div>`;
@@ -119,6 +120,7 @@ function renderOggi() {
     } else {
       const nxt = nextSession(plan, t);
       html += `<div class="card"><div class="today-head"><span><span class="badge">Riposo</span></span><span>Oggi, ${esc(WEEKDAYS_SHORT[day.dayIndex])} ${fmtDate(t)} · Settimana ${week.week}/${plan.totalWeeks}</span></div><h3 class="session-title">Oggi si recupera</h3><p class="note">Rispetta il giorno di riposo: è lì che si assimila l'allenamento. Una seduta saltata non va mai recuperata.</p></div>`;
+      html += feedbackCard(state.feedback.find(f => f.date === t && f.planId === plan.id), EXTRA, "Hai corso comunque?");
       if (nxt) { const e2 = effectiveSession(plan, nxt.day); html += `<div class="card"><div class="today-head"><span><span class="badge ${esc(e2.kind)}">${KIND[e2.kind]}</span></span><span>Prossima: ${esc(WEEKDAYS_SHORT[nxt.day.dayIndex])} ${fmtDate(nxt.day.date)}</span></div><h3 class="session-title">${esc(e2.title)}</h3>${sessionBlock(e2)}</div>`; }
     }
     html += `<div class="card"><h2>Questa settimana</h2><p class="note">${esc(week.name)} — ${esc(week.text)}</p><div class="weekstrip" style="margin-top:12px">${week.days.map(d => {
@@ -128,13 +130,13 @@ function renderOggi() {
   }
   el.innerHTML = html;
 }
-function feedbackCard(fb, eff) {
+function feedbackCard(fb, eff, title = "Com'è andata davvero?") {
   if (fb) return `<div class="card"><h2>Registrato</h2><p class="note">${fb.completion === "skipped" ? "Seduta non svolta." : `Hai corso ${fb.actualKm != null ? fmtKm(fb.actualKm) + " km" : "—"}${fb.durationSec ? " in " + fmtDuration(fb.durationSec) : ""}${fb.rpe ? ", RPE " + fb.rpe : ""}.`}${fb.advice ? " " + esc(fb.advice) : ""}</p><button class="link" data-undo-feedback type="button">Modifica</button></div>`;
-  return `<div class="card"><h2>Com'è andata davvero?</h2><p class="note">Il tuo riscontro serve ad adattare il piano: ti proporrò correzioni, senza cambiare nulla finché non confermi.</p>
+  return `<div class="card"><h2>${esc(title)}</h2><p class="note">Il tuo riscontro serve ad adattare il piano: ti proporrò correzioni, senza cambiare nulla finché non confermi.</p>
     <form id="daily-form" class="form" style="margin-top:12px"><div class="grid2">
       <label>Esito<select name="completion"><option value="completed">Completata</option><option value="modified">Svolta in modo diverso</option><option value="skipped">Non svolta</option></select></label>
-      <label>Distanza (km)<input type="number" name="distanceKm" min="0.1" max="300" step="0.01" placeholder="${String(eff.km)}"></label>
-      <label>Durata (minuti)<input type="number" name="durationMin" min="1" max="2880" step="0.1" placeholder="${Math.round(eff.sec / 60)}"></label>
+      <label>Distanza (km)<input type="number" name="distanceKm" min="0.1" max="300" step="0.01" placeholder="${eff.km ? String(eff.km) : "es. 8"}"></label>
+      <label>Durata (minuti)<input type="number" name="durationMin" min="1" max="2880" step="0.1" placeholder="${eff.sec ? Math.round(eff.sec / 60) : "es. 50"}"></label>
       <label>Sforzo percepito (RPE)<select name="rpe"><option value="">—</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<option>${n}</option>`).join("")}</select></label></div>
       <label>Note su sensazioni e recupero<textarea name="notes" rows="2" maxlength="2000" placeholder="Gambe, respiro, sonno, caldo…"></textarea></label>
       <label class="check"><input type="checkbox" name="fatigue"><span>Fatica insolita o recupero insufficiente</span></label>
@@ -145,8 +147,8 @@ function submitDaily(form) {
   const msg = $("#daily-message"); msg.hidden = true;
   try {
     const plan = state.plan, t = today(), loc = locate(plan, t);
-    const day = loc?.state === "in" ? loc.day : null, eff = day && effectiveSession(plan, day);
-    if (!eff) throw new Error("Oggi non c'è una seduta da confrontare.");
+    const day = loc?.state === "in" ? loc.day : null, eff = day && (effectiveSession(plan, day) ?? EXTRA);
+    if (!eff) throw new Error("Il piano non è ancora iniziato: usa \"Registra un allenamento\" in Progressi.");
     const data = new FormData(form), completion = String(data.get("completion"));
     const km = String(data.get("distanceKm")).trim(), min = String(data.get("durationMin")).trim(), rpe = String(data.get("rpe")).trim();
     if (completion !== "skipped" && !km && !min) throw new Error("Inserisci almeno distanza o durata.");
@@ -157,7 +159,7 @@ function submitDaily(form) {
       workout = createWorkout({ date: t, distanceKm: km ? Number(km) : null, durationSec: min ? Math.round(Number(min) * 60) : null, rpe: rpe ? Number(rpe) : null, notes: String(data.get("notes") ?? ""), source: "seduta", externalId: `seduta:${t}` });
       state.workouts.push(workout);
     }
-    state.feedback = [{ id: `fb-${Date.now()}`, date: t, planId: plan.id, kind: eff.kind, title: eff.title, plannedKm: eff.km, plannedAvgPaceSec: eff.avgPaceSec, completion, actualKm: workout?.distanceKm ?? null, durationSec: workout?.durationSec ?? null, rpe: workout?.rpe ?? null, fatigue, pain, notes: String(data.get("notes") ?? "") }, ...state.feedback.filter(f => f.date !== t)].slice(0, 200);
+    state.feedback = [{ id: `fb-${Date.now()}`, date: t, planId: plan.id, kind: eff.kind, title: eff.title, plannedKm: eff.km, plannedAvgPaceSec: eff.avgPaceSec || null, completion, actualKm: workout?.distanceKm ?? null, durationSec: workout?.durationSec ?? null, rpe: workout?.rpe ?? null, fatigue, pain, notes: String(data.get("notes") ?? "") }, ...state.feedback.filter(f => f.date !== t)].slice(0, 200);
     if (pain) state.plan = { ...plan, status: "paused" };
     const hasProposal = !pain && proposeFromFeedback({ plan: state.plan, feedback: state.feedback, today: t, dismissed: state.dismissed }).length > 0;
     state.feedback[0].advice = pain ? "Piano sospeso: chiedi una valutazione professionale." : hasProposal ? "Ho una proposta di correzione qui sopra." : "Nessuna correzione necessaria: prosegui col piano.";
