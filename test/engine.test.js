@@ -295,7 +295,7 @@ test("quality sessions expose quantifiable repetitions and recovery distances", 
     assert.equal(set.repetitions >= 1, true);
     assert.ok(set.workDistanceKm > 0);
     assert.ok(set.recoveryDistanceKm > 0);
-    assert.equal(set.recoveryCount, session.type === "threshold" ? set.repetitions - 1 : set.repetitions - 1);
+    assert.equal(set.recoveryCount, set.repetitions - 1);
     const fastDistance = set.repetitions * set.workDistanceKm;
     const recoveryDistance = set.recoveryCount * set.recoveryDistanceKm;
     assert.ok(fastDistance + recoveryDistance <= session.structure.mainKm + 0.01);
