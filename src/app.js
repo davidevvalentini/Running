@@ -3,6 +3,7 @@ import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
 import { buildSessionPrescription } from "./domain/prescriptions.js";
+import { getDailySessionContext, suggestDailyAdjustment } from "./domain/daily-session.js";
 
 const store = createLocalStore();
 let state = store.read();
@@ -74,24 +75,9 @@ function renderPlan(plan) {
   </details>`).join("");
   renderDailySession();
 }
-function getDailySessionContext(plan, date = today()) {
-  if (!plan?.weeks?.length || !plan.startDate) return null;
-  const startMs = Date.parse(plan.startDate + "T00:00:00Z");
-  const dateMs = Date.parse(date + "T00:00:00Z");
-  if (!Number.isFinite(startMs) || !Number.isFinite(dateMs) || dateMs < startMs) return null;
-  const dayOffset = Math.floor((dateMs - startMs) / 86400000);
-  const weekIndex = Math.floor(dayOffset / 7);
-  const week = plan.weeks[weekIndex];
-  if (!week) return { finished: true, weekIndex };
-  const names = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-  const dayName = names[new Date(date + "T12:00:00").getDay()];
-  const session = week.sessions.find(item => item.day === dayName) ?? null;
-  const nextSession = week.sessions.find(item => names.indexOf(item.day) > names.indexOf(dayName)) ?? null;
-  return { week, weekNumber: week.week, dayName, session, nextSession, date, weekIndex };
-}
 function renderDailySession() {
   const target = $("#daily-session-content"); if (!target) return;
-  const plan = state.plans[0], ctx = getDailySessionContext(plan);
+  const plan = state.plans[0], ctx = getDailySessionContext(plan, today());
   if (!plan || !ctx) { target.innerHTML = '<div class="empty">Genera un piano valido per la data odierna per vedere la seduta prevista.</div>'; return; }
   if (ctx.finished) { target.innerHTML = '<div class="empty">Il periodo coperto dal piano è terminato. Rigenera il programma dal profilo per continuare.</div>'; return; }
   if (plan.status === "paused") { target.innerHTML = '<div class="warning">Piano sospeso. Non riprendere automaticamente: chiedi una valutazione professionale se hai dolore o sintomi preoccupanti.</div>'; return; }
@@ -134,13 +120,17 @@ $("#daily-session-form").addEventListener("submit", event => {
       workout = createWorkout({ date: today(), distanceKm: distanceText ? Number(distanceText) : null, durationSec: durationText ? Number(durationText) * 60 : null, rpe: rpeText ? Number(rpeText) : null, notes: String(data.get("notes") ?? ""), source: "daily-session" });
       state.workouts.push(workout);
     }
-    let advice;
-    if (pain) { runner.hasConcerningSymptoms = true; plan.status = "paused"; plan.warnings = [...(plan.warnings ?? []), "Piano sospeso dopo il feedback della seduta odierna per dolore o sintomi preoccupanti."]; advice = "PROPOSTA: sospendere la progressione e chiedere una valutazione professionale appropriata. Non riprendere automaticamente."; }
-    else if (fatigue || Number(rpeText) >= 8) advice = "PROPOSTA: non aumentare il carico; considera una seduta facile o riposo aggiuntivo e rivaluta il recupero prima della prossima qualità. Se la fatica persiste, chiedi consiglio a un professionista.";
-    else if (completion === "skipped") advice = "PROPOSTA: non recuperare i chilometri persi. Riprendi dal prossimo allenamento previsto; se le sedute saltate si accumulano, rivedi carico o calendario.";
-    else if (distanceText && Number(distanceText) < ctx.session.distanceKm * 0.7) advice = "PROPOSTA: seduta molto più corta del previsto. Mantieni il carico attuale o ripeti una settimana simile invece di progredire automaticamente.";
-    else if (rpeText && Number(rpeText) <= 6 && (!distanceText || Number(distanceText) >= ctx.session.distanceKm * 0.85) && completion === "completed") advice = "PROPOSTA: seduta apparentemente ben tollerata. Continua con il piano attuale; un singolo allenamento non basta per aumentare il carico settimanale.";
-    else advice = "PROPOSTA: dati insufficienti per giustificare un aumento. Mantieni il piano e valuta più sedute, recupero e RPE.";
+    const suggestion = suggestDailyAdjustment({
+      completion, plannedKm: ctx.session.distanceKm,
+      actualKm: workout?.distanceKm ?? null, rpe: workout?.rpe ?? null,
+      fatigue, pain
+    });
+    const advice = "PROPOSTA: " + suggestion.message;
+    if (suggestion.decision === "pause") {
+      runner.hasConcerningSymptoms = true;
+      plan.status = "paused";
+      plan.warnings = [...(plan.warnings ?? []), "Piano sospeso dopo il feedback della seduta odierna per dolore o sintomi preoccupanti."];
+    }
     state.runners = [runner];
     state.dailyFeedback = [{ id: "feedback-" + Date.now(), date: today(), planId: plan.id, plannedType: ctx.session.type, plannedKm: ctx.session.distanceKm, completion, actualKm: workout?.distanceKm ?? null, durationSec: workout?.durationSec ?? null, rpe: workout?.rpe ?? null, fatigue, pain, notes: String(data.get("notes") ?? ""), advice }, ...(state.dailyFeedback ?? [])].slice(0,100);
     persist(); renderHistory(); renderDailySession(); message.textContent = advice; message.hidden = false;
