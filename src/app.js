@@ -2,6 +2,7 @@ import { generatePlan, reviewTrainingWeek, applyAdjustment, getLatestCompletedPl
 import { createWorkout, validateRunner } from "./domain/models.js";
 import { createLocalStore } from "./storage/local-store.js";
 import { previewActivities } from "./import/activities.js";
+import { buildSessionPrescription } from "./domain/prescriptions.js";
 
 const store = createLocalStore();
 let state = store.read();
@@ -37,6 +38,7 @@ function readRunner(form) {
     id: state.runners[0]?.id ?? "runner-local",
     level: String(data.get("level")),
     raceDate: String(data.get("raceDate")),
+    goalMarathonTimeSec: parseRaceTime(String(data.get("goalMarathonTime") ?? "")),
     weeklyKm: Number(data.get("weeklyKm")),
     longestRunKm: Number(data.get("longestRunKm")),
     daysAvailable: Number(data.get("daysAvailable")),
@@ -58,6 +60,7 @@ function renderPlan(plan) {
     ["Carico attuale", labels[plan.context.loadBand] ?? plan.context.loadBand]
   ].map(([title,value]) => `<div class="summary-card"><span>${esc(title)}</span><strong>${esc(value)}</strong></div>`).join("");
   $("#plan-warnings").innerHTML = plan.warnings.map(w => `<div class="warning">⚠ ${esc(w)}</div>`).join("");
+  if (plan.goalMarathonTimeSec) { const goal = document.createElement("div"); goal.className = "pace-zones"; goal.innerHTML = `<h3>Obiettivo maratona</h3><p>${esc(formatRaceTime(plan.goalMarathonTimeSec))} · passo medio teorico ${esc(plan.targetMarathonPaceSecPerKm ? `${Math.floor(plan.targetMarathonPaceSecPerKm / 60)}:${String(Math.round(plan.targetMarathonPaceSecPerKm % 60)).padStart(2,"0")}/km` : "non disponibile")}. È un obiettivo, non una previsione né una garanzia di risultato.</p>`; $("#plan-warnings").after(goal); }
   $("#pace-zones")?.remove();
   if (plan.paceZones) {
     const zones = document.createElement("div");
@@ -67,7 +70,7 @@ function renderPlan(plan) {
   }
   $("#plan-weeks").innerHTML = plan.weeks.map(week => `<details class="week-card" ${week.week === 1 ? "open" : ""}>
     <summary><span class="week-num">W${String(week.week).padStart(2,"0")}</span><span><span class="week-title">${esc(week.recovery ? "Settimana di recupero" : "Settimana " + week.week)}</span><span class="week-sub"> · ${esc(week.guidance)}</span></span><span class="phase">${esc(labels[week.phase] ?? week.phase)}</span><span class="week-km">${week.targetKm.toLocaleString("it-IT")} km</span></summary>
-    <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
+    <div class="session-list">${week.sessions.map((s,i) => `<div class="session"><div><strong>${esc(s.day ? s.day + " · " : "")}${esc(labels[s.type] ?? s.type)}</strong><small>${esc(s.effort)}${s.note ? " · "+esc(s.note) : ""}</small>${s.structure ? `<small class="session-structure">Riscaldamento ${s.structure.warmupKm.toLocaleString("it-IT")} km · Parte centrale ${s.structure.mainKm.toLocaleString("it-IT")} km · Defaticamento ${s.structure.cooldownKm.toLocaleString("it-IT")} km</small><small class="session-main">${esc(s.structure.mainSet)}</small><div class="prescription-steps">${buildSessionPrescription(s).steps.map(step => `<div class="prescription-step"><span>${esc(step.title)} · ${step.distanceKm.toLocaleString("it-IT")} km</span><small>${esc(step.effort)} — ${esc(step.instruction)}</small></div>`).join("")}</div><small class="session-main">${esc(buildSessionPrescription(s).note)}</small>` : ""}</div><b>${s.distanceKm.toLocaleString("it-IT")} km</b></div>`).join("")}</div>
   </details>`).join("");
   $("#plan-section").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -202,6 +205,9 @@ function restoreProfile() {
   const form = $("#profile-form");
   for (const key of ["level","raceDate","weeklyKm","longestRunKm","daysAvailable"]) if (runner[key] != null) form.elements[key].value = runner[key];
   if (runner.recentPaceSecPerKm) form.elements.recentPace.value = `${Math.floor(runner.recentPaceSecPerKm/60)}:${String(runner.recentPaceSecPerKm%60).padStart(2,"0")}`;
+  if (runner.goalMarathonTimeSec) form.elements.goalMarathonTime.value = formatRaceTime(runner.goalMarathonTimeSec);
+  if (runner.recentRaceDistanceKm) form.elements.recentRaceDistance.value = String(runner.recentRaceDistanceKm);
+  if (runner.recentRaceTimeSec) form.elements.recentRaceTime.value = formatRaceTime(runner.recentRaceTimeSec);
   form.elements.symptoms.checked = Boolean(runner.hasConcerningSymptoms);
   if (state.plans[0]) renderPlan(state.plans[0]);
 }

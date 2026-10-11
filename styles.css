@@ -7,3 +7,27 @@
 .pace-grid span{font-size:11px;color:var(--muted)}
 .pace-grid strong{font-size:14px}
 @media(max-width:600px){.pace-grid{grid-template-columns:1fr}}
+
+
+/* Structured, readable workout prescriptions */
+.prescription-steps {
+  display: grid;
+  gap: .45rem;
+  margin-top: .65rem;
+}
+.prescription-step {
+  display: grid;
+  gap: .2rem;
+  padding: .65rem .75rem;
+  border-left: 3px solid var(--accent, #5b8fdb);
+  border-radius: 0 .5rem .5rem 0;
+  background: var(--surface-muted, rgba(127, 145, 170, .09));
+}
+.prescription-step > span {
+  font-size: .82rem;
+  font-weight: 700;
+}
+.prescription-step > small {
+  line-height: 1.5;
+  color: var(--muted, #667085);
+}
