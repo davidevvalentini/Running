@@ -328,6 +328,7 @@ function syncGoalLabel() {
   $("#goal-label").textContent = dist === "10k" ? "Tempo obiettivo, facoltativo (minuti e secondi)" : "Tempo obiettivo, facoltativo (ore e minuti)";
   for (const label of f.querySelectorAll("#goal-label ~ label")) label.hidden = !parts.includes(label.dataset.part);
   f.elements.goalH.placeholder = dist === "half" ? "2" : "4";
+  $("#first-marathon").hidden = dist !== "marathon";
   f.elements.goalM.placeholder = dist === "10k" ? "55" : "00";
 }
 function suggestDays() {
@@ -347,8 +348,7 @@ $("#profile-form").addEventListener("submit", e => {
     const dist = f.elements.distance.value, cfg = DISTANCES[dist];
     const goal = readGoalSec(f);
     const raceTime = readRaceSec(f), levelBand = f.elements.levelBand.value || null;
-    if (dist !== "marathon" && !goal) throw new Error(dist === "10k" ? "Inserisci il tempo obiettivo (minuti e secondi)." : "Inserisci il tempo obiettivo (ore e minuti).");
-    if (dist === "marathon" && !goal && !raceTime && !levelBand) throw new Error("Indica una gara recente (meglio una mezza) oppure il tuo livello; se non sai nulla scegli «Non lo so».");
+    if (!goal && !raceTime && !levelBand) throw new Error("Indica una gara recente (meglio una mezza) oppure il tuo livello; se non sai nulla scegli «Non lo so».");
     const profile = {
       distance: dist, maxHr: f.elements.maxHr.value ? Number(f.elements.maxHr.value) : null, city: f.elements.city.value.trim() || null,
       raceDate: f.elements.raceDate.value, goalTimeSec: goal || null, levelBand, firstMarathon: f.elements.firstMarathon.checked, daysAvailable: Number(f.elements.daysAvailable.value),

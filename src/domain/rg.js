@@ -56,3 +56,16 @@ export function estimateWarnings(est) {
   if (est.provisional) out.push("Ritmi provvisori, da confermare: il piano parte da una stima prudente dal livello dichiarato.");
   return out;
 }
+
+// Stima del tempo di gara per mezza e 10 km da una gara recente, dal test sui 5 km o da una fascia di livello (Riegel; la mezza +2% di fatica).
+export function estimateShort(key, profile, tests = []) {
+  const target = key === "half" ? 21.0975 : 10, fatigue = key === "half" ? 1.02 : 1;
+  const conv = (sec, km) => Math.round((sec * (target / km) ** RIEGEL * (km < target ? fatigue : 1)) / (key === "half" ? 30 : 10)) * (key === "half" ? 30 : 10);
+  const d = profile.recentRaceDistanceKm, t = profile.recentRaceTimeSec;
+  if (d && t) return { sec: conv(t, d), source: d === target ? "gara" : `${d === 21.0975 ? "mezza" : d + "k"}`, provisional: false, notes: [] };
+  const t5 = [...tests].filter(x => x.type === "tt5k" && x.durationSec).sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (t5) return { sec: conv(t5.durationSec, 5), source: "test5k", provisional: false, notes: [] };
+  const band = levelBand(profile.levelBand);
+  if (band) return { sec: conv(band.tenKSec, 10), source: "livello", provisional: true, notes: [] };
+  return null;
+}

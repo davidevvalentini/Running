@@ -1,7 +1,7 @@
 import { buildPaces, fmtGoal } from "./paces.js";
 import { MANUALE_WEEKS, MANUALE_8_WEEKS, manualeWeekDays, DAYS_PENALTY_SEC } from "./manuale.js";
 import { MEZZA_WEEKS, mezzaWeekDays } from "./mezza.js";
-import { estimateMarathon, estimateWarnings } from "./rg.js";
+import { estimateMarathon, estimateShort, estimateWarnings } from "./rg.js";
 import { measure, reps, run } from "./session.js";
 import { isValidISODate } from "./models.js";
 
@@ -213,7 +213,7 @@ export function validateProfile(p) {
   if (!p || typeof p !== "object") return { ok: false, errors: ["Profilo non valido."] };
   const cfg = DISTANCES[p.distance ?? "marathon"];
   if (!cfg) errors.push("Distanza di gara non supportata.");
-  else if (p.goalTimeSec == null && cfg.key === "marathon" && true) { /* obiettivo facoltativo: il ritmo gara si stima dai dati */ }
+  else if (p.goalTimeSec == null) { /* obiettivo facoltativo: il ritmo gara si stima dai dati */ }
   else if (!Number.isFinite(p.goalTimeSec) || p.goalTimeSec < cfg.minGoal || p.goalTimeSec > cfg.maxGoal) errors.push(`Il tempo obiettivo per ${cfg.label} deve essere tra ${fmtLimit(cfg.minGoal)} e ${fmtLimit(cfg.maxGoal)}.`);
   if (!isValidISODate(p.raceDate)) errors.push("Data gara non valida.");
   if (!Number.isInteger(p.daysAvailable) || p.daysAvailable < 3 || p.daysAvailable > 6) errors.push("Scegli da 3 a 6 giorni di corsa a settimana.");
@@ -247,8 +247,8 @@ export function generatePlan(profileIn, options = {}) {
     : cfg.key === "half" && (profileIn.method ?? "mezza8") === "mezza8" ? "mezza8" : "goandrace";
   // Ritmo gara: correzione esplicita (rgTimeSec) > stima dai dati (solo metodo del manuale) > obiettivo.
   // L'obiettivo, se c'è, viene solo confrontato con la stima.
-  const est = cfg.key === "marathon" ? estimateMarathon(profileIn, options.tests ?? []) : null;
-  const rgSec = profileIn.rgTimeSec ?? (method === "manuale" ? est?.sec : null) ?? profileIn.goalTimeSec ?? est?.sec;
+  const est = cfg.key === "marathon" ? estimateMarathon(profileIn, options.tests ?? []) : estimateShort(cfg.key, profileIn, options.tests ?? []);
+  const rgSec = profileIn.rgTimeSec ?? (method === "manuale" || method === "mezza8" ? est?.sec : null) ?? profileIn.goalTimeSec ?? est?.sec;
   if (!Number.isFinite(rgSec)) throw new TypeError("Indica una gara recente o il tuo livello, oppure fai prima il test sui 5 km.");
   if (rgSec < cfg.minGoal || rgSec > cfg.maxGoal) throw new RangeError("Il ritmo gara stimato è fuori dai limiti supportati: indica un tempo obiettivo.");
   const profile = { ...profileIn, goalTimeSec: rgSec };
@@ -285,6 +285,11 @@ export function generatePlan(profileIn, options = {}) {
       if (spec.race) out[6] = raceSession(cfg);
       return out;
     };
+    if (est && profileIn.rgTimeSec == null) {
+      warnings.push(`Ritmo gara stimato ${est.source === "livello" ? "dal livello dichiarato" : est.source === "test5k" ? "dal test sui 5 km" : "dalla tua gara recente"}: mezza in circa ${fmtGoal(rgSec)}.`);
+      if (profileIn.goalTimeSec != null && profileIn.goalTimeSec < rgSec * 0.97) warnings.push(`Il tuo obiettivo (${fmtGoal(profileIn.goalTimeSec)}) è più veloce della stima: il piano usa la stima; i test delle prime settimane diranno se puoi alzare il ritmo.`);
+      if (est.provisional) warnings.push("Ritmi provvisori, da confermare con il test sui 5 km della prima settimana.");
+    }
     warnings.push("Programma a 8 settimane con 3 sedute fisse (lunedì, giovedì, sabato) e test di verifica del ritmo gara. Il ritmo lento è RG+35″ e il fondo medio RG+20″.");
     warnings.push("Il ritmo gara si verifica con i test: il test sui 5 km (RG = ritmo del test + 20″) e il test da 15 km a RG. Se non riesci a tenerli, ritocca il tempo obiettivo.");
     if (profile.daysAvailable > 3) warnings.push(`Con ${profile.daysAvailable} giorni a settimana aggiungo fondi lenti facoltativi (6-8 km): non sono nel programma di riferimento, che ne prevede 3.`);
