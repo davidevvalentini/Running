@@ -66,3 +66,11 @@ test("ripetute con recupero da fermo e recuperi corsi si espandono in km coerent
   assert.ok(exp.length > 0);
   assert.ok(Math.abs(kmOf(s) - (2.5 + 15 + 3 * 1.5)) < 0.6, String(kmOf(s)));
 });
+
+test("senza obiettivo: il RG della mezza si stima da una gara recente o dal livello", () => {
+  const a = generatePlan({ ...base, goalTimeSec: undefined, recentRaceDistanceKm: 10, recentRaceTimeSec: 2700 }, { today: TODAY });
+  assert.equal(a.estimate.source, "10k"); assert.ok(a.goalTimeSec > 5400 && a.goalTimeSec < 6300);
+  const b = generatePlan({ ...base, goalTimeSec: undefined, levelBand: "unknown" }, { today: TODAY });
+  assert.equal(b.provisional, true);
+  assert.throws(() => generatePlan({ ...base, goalTimeSec: undefined }, { today: TODAY }), /gara recente|livello/);
+});
