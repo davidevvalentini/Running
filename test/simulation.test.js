@@ -19,7 +19,7 @@ test("piani: regole valide per distanza × obiettivo × giorni × anticipo × gi
     const goals = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round((cfg.minGoal + (cfg.maxGoal - cfg.minGoal) * f) / 60) * 60);
     for (const goal of goals) for (const days of [3, 4, 5, 6]) for (const ahead of [29, 80, 112, 200]) for (const raceWd of [1, 5, 6]) {
       let race = addDays(today, ahead); while (wdIndex(race) !== raceWd) race = addDays(race, 1);
-      const p = generatePlan({ distance: dist, goalTimeSec: goal, raceDate: race, daysAvailable: days, weeklyKm: 30, longestRunKm: 16 }, { today });
+      const p = generatePlan({ method: "goandrace", distance: dist, goalTimeSec: goal, raceDate: race, daysAvailable: days, weeklyKm: 30, longestRunKm: 16 }, { today });
       const tag = `${dist} ${goal} d${days} +${ahead} wd${raceWd}`; count++;
       const paces = planSummary(p).paces;
       assert.ok(p.startDate >= today, tag);
@@ -56,7 +56,7 @@ test("corridori simulati: gli adattamenti restano limitati, mai più km, mai dop
     const dist = pick(["marathon", "half", "10k"]);
     const goal = { marathon: pick([10800, 14400, 18000]), half: pick([5400, 7200, 9000]), "10k": pick([2700, 3300, 3900]) }[dist];
     const behavior = pick(["good", "tired", "slow", "fast", "lazy", "chaotic"]);
-    let plan = generatePlan({ distance: dist, goalTimeSec: goal, raceDate: "2027-01-31", daysAvailable: pick([3, 4, 5, 6]), weeklyKm: 30, longestRunKm: 16 }, { today: "2026-10-11" });
+    let plan = generatePlan({ method: "goandrace", distance: dist, goalTimeSec: goal, raceDate: "2027-01-31", daysAvailable: pick([3, 4, 5, 6]), weeklyKm: 30, longestRunKm: 16 }, { today: "2026-10-11" });
     const original = plan; let feedback = [], workouts = [], dismissed = [];
     for (let day = 0; day < plan.totalWeeks * 7; day++) {
       const today = addDays(plan.startDate, day), loc = locate(plan, today);
@@ -92,7 +92,7 @@ test("corridori simulati: gli adattamenti restano limitati, mai più km, mai dop
 });
 
 test("stato salvato: i piani validi sopravvivono, i dati sporchi vengono scartati", () => {
-  const p = generatePlan({ goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRunKm: 16 }, { today: "2026-10-11" });
+  const p = generatePlan({ method: "goandrace", goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRunKm: 16 }, { today: "2026-10-11" });
   assert.ok(sanitize({ plan: p }).plan);
   assert.equal(sanitize({ plan: { ...p, weeks: [{ week: 1, km: 3, days: [] }] } }).plan, null);
   assert.equal(sanitize({ plan: { ...p, weeks: p.weeks.map(w => ({ ...w, days: w.days.map(d => d.session ? { ...d, session: { ...d.session, steps: [{ k: "boh" }] } } : d) })) } }).plan, null);

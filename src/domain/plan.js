@@ -1,4 +1,5 @@
-import { buildPaces } from "./paces.js";
+import { buildPaces, fmtGoal } from "./paces.js";
+import { MANUALE_WEEKS, MANUALE_8_WEEKS, manualeWeekDays, DAYS_PENALTY_SEC } from "./manuale.js";
 import { measure, reps, run } from "./session.js";
 import { isValidISODate } from "./models.js";
 
@@ -220,6 +221,7 @@ export function validateProfile(p) {
   if (hasD !== hasT) errors.push("Indica distanza e tempo della gara recente insieme.");
   if (hasD && ![5, 10, 21.0975].includes(p.recentRaceDistanceKm)) errors.push("La gara recente deve essere 5, 10 o mezza maratona.");
   if (hasT && (!Number.isFinite(p.recentRaceTimeSec) || p.recentRaceTimeSec < 600 || p.recentRaceTimeSec > 8 * 3600)) errors.push("Il tempo della gara recente non è plausibile.");
+  if (p.method != null && !["manuale", "goandrace"].includes(p.method)) errors.push("Metodo di preparazione non supportato.");
   if (p.maxHr != null && (!Number.isFinite(p.maxHr) || p.maxHr < 120 || p.maxHr > 230)) errors.push("La frequenza massima deve essere tra 120 e 230 bpm.");
   return { ok: errors.length === 0, errors };
 }
@@ -239,31 +241,52 @@ export function generatePlan(profile, options = {}) {
 
   const goalPace = profile.goalTimeSec / cfg.km;
   const paces = buildPaces(goalPace, 0, cfg.key);
-  const tplWeeks = [];
-  if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
-    // Due settimane di ingresso, più leggere, prima del blocco standard.
-    tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso", lq: 10, z2: 6, cl: 6, text: "Due settimane di ingresso per portare la base al livello d'inizio piano. Corri facile e regolare." });
-    tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso progressivo", lq: 12, z2: 8, cl: 8, q: "B10x400", text: "Seconda settimana di ingresso: prime ripetute corte, ancora senza spingere." });
-  }
-  tplWeeks.push(...cfg.tpl);
-  // Volume: si scala il modello perché la media settimanale coincida con quella dei piani di riferimento
-  // per la fascia (alla frequenza consigliata, corretta per i giorni scelti).
-  const rec = recommendedDays(cfg.key, profile.goalTimeSec);
-  const target = interp(VOLUME_TARGETS[cfg.key], goalPace) * Math.pow(profile.daysAvailable / rec, 0.8);
-  const avgAt = fv => tplWeeks.reduce((sum, spec) => sum + weekDays(spec, fv, profile.daysAvailable, paces, cfg).reduce((a, sess) => a + (sess ? measure(sess.steps, paces).km : 0), 0), 0) / tplWeeks.length;
-  let f = 1;
-  for (let i = 0; i < 8; i++) { const avg = avgAt(f); if (Math.abs(avg / target - 1) < 0.01) break; f = clamp(f * target / avg, 0.5, 1.8); }
-  const n = Math.min(tplWeeks.length, weeksAvail);
-  const used = tplWeeks.slice(tplWeeks.length - n);
-  const startDate = addDays(profile.raceDate, -(n * 7 - 1));
+  // Maratona: di default il piano del manuale (Albanesi); "goandrace" mantiene la calibrazione sui piani di riferimento.
+  const method = cfg.key === "marathon" && (profile.method ?? "manuale") === "manuale" ? "manuale" : "goandrace";
   const warnings = [];
-  if (n < tplWeeks.length) warnings.push(`Mancano ${weeksAvail} settimane: il piano completo ne prevede ${tplWeeks.length}. Parti dalla fase ${used[0].phase === "build" ? "di sviluppo" : used[0].phase === "specific" ? "specifica" : "finale"} del programma, a condizione di avere già una buona base.`);
-  const minWeeks = cfg.key === "marathon" ? 10 : cfg.key === "half" ? 8 : 6;
-  if (n < minWeeks) warnings.push(`Con meno di ${minWeeks} settimane la preparazione completa non è realistica: considera una gara più avanti.`);
-  if (profile.daysAvailable === 3) warnings.push("Con 3 giorni a settimana il piano è compresso: la corsa rigenerante del martedì è unita alla corsa lenta del venerdì.");
+  let used, buildDays, startDate, n;
+  if (method === "manuale") {
+    used = weeksAvail >= MANUALE_WEEKS.length ? MANUALE_WEEKS : weeksAvail >= MANUALE_8_WEEKS.length ? MANUALE_8_WEEKS : MANUALE_WEEKS.slice(-weeksAvail);
+    n = used.length;
+    buildDays = spec => {
+      const out = manualeWeekDays(spec, profile.daysAvailable, paces);
+      if (spec.race) out[6] = raceSession(cfg);
+      return out;
+    };
+    warnings.push("Il programma del manuale ha volumi fissi (circa 85-110 km a settimana nel picco) e non scala con l'obiettivo: presuppone di reggere già circa 70 km a settimana. Il massimo sostenibile è (150 − età) km a settimana.");
+    if (weeksAvail < MANUALE_WEEKS.length && weeksAvail >= MANUALE_8_WEEKS.length) warnings.push("Con meno di 12 settimane si usa la versione a 8: salta le prime due settimane e le settimane 5-6 del programma, adatta solo a chi ha corso diverse mezze di recente e ha il peso ottimizzato.");
+    if (weeksAvail < MANUALE_8_WEEKS.length) warnings.push(`Mancano settimane: il piano completo ne prevede ${MANUALE_WEEKS.length} (8 nella versione ridotta). Parti dalle ultime ${weeksAvail}, a condizione di avere già una buona base e almeno due lunghissimi oltre i 30 km.`);
+    if (weeksAvail < 8) warnings.push("Con meno di 8 settimane la preparazione completa non è realistica: considera una gara più avanti.");
+    if (profile.daysAvailable < 6) warnings.push(`Con ${profile.daysAvailable} giorni a settimana si eliminano le sedute di scarico (secondo il manuale ${profile.daysAvailable === 5 ? "S5" : profile.daysAvailable === 4 ? "S1 e S5" : "S1, S2 e S5"}) e a parità di impegno il ritmo gara è circa ${DAYS_PENALTY_SEC[profile.daysAvailable]}″/km più lento che con 6 sedute.`);
+    // Il manuale stima la maratona come 2,2 × mezza (evoluti: meno). Sotto 2,15 l'obiettivo è fuori portata.
+    if (profile.recentRaceDistanceKm === 21.0975 && profile.goalTimeSec < 2.15 * profile.recentRaceTimeSec) warnings.push(`Dalla tua mezza il manuale stima circa ${fmtGoal(Math.round(2.2 * profile.recentRaceTimeSec))} (mezza × 2,2): l'obiettivo è più veloce di 2,15 × mezza, valuta un RG più lento.`);
+  } else {
+    const tplWeeks = [];
+    if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
+      // Due settimane di ingresso, più leggere, prima del blocco standard.
+      tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso", lq: 10, z2: 6, cl: 6, text: "Due settimane di ingresso per portare la base al livello d'inizio piano. Corri facile e regolare." });
+      tplWeeks.push({ ...cfg.tpl[0], name: "Ingresso progressivo", lq: 12, z2: 8, cl: 8, q: "B10x400", text: "Seconda settimana di ingresso: prime ripetute corte, ancora senza spingere." });
+    }
+    tplWeeks.push(...cfg.tpl);
+    // Volume: si scala il modello perché la media settimanale coincida con quella dei piani di riferimento
+    // per la fascia (alla frequenza consigliata, corretta per i giorni scelti).
+    const rec = recommendedDays(cfg.key, profile.goalTimeSec);
+    const target = interp(VOLUME_TARGETS[cfg.key], goalPace) * Math.pow(profile.daysAvailable / rec, 0.8);
+    const avgAt = fv => tplWeeks.reduce((sum, spec) => sum + weekDays(spec, fv, profile.daysAvailable, paces, cfg).reduce((a, sess) => a + (sess ? measure(sess.steps, paces).km : 0), 0), 0) / tplWeeks.length;
+    let f = 1;
+    for (let i = 0; i < 8; i++) { const avg = avgAt(f); if (Math.abs(avg / target - 1) < 0.01) break; f = clamp(f * target / avg, 0.5, 1.8); }
+    n = Math.min(tplWeeks.length, weeksAvail);
+    used = tplWeeks.slice(tplWeeks.length - n);
+    buildDays = spec => weekDays(spec, f, profile.daysAvailable, paces, cfg);
+    if (n < tplWeeks.length) warnings.push(`Mancano ${weeksAvail} settimane: il piano completo ne prevede ${tplWeeks.length}. Parti dalla fase ${used[0].phase === "build" ? "di sviluppo" : used[0].phase === "specific" ? "specifica" : "finale"} del programma, a condizione di avere già una buona base.`);
+    const minWeeks = cfg.key === "marathon" ? 10 : cfg.key === "half" ? 8 : 6;
+    if (n < minWeeks) warnings.push(`Con meno di ${minWeeks} settimane la preparazione completa non è realistica: considera una gara più avanti.`);
+    if (profile.daysAvailable === 3) warnings.push("Con 3 giorni a settimana il piano è compresso: la corsa rigenerante del martedì è unita alla corsa lenta del venerdì.");
+  }
+  startDate = addDays(profile.raceDate, -(n * 7 - 1));
 
   const weeks = used.map((spec, i) => {
-    const days = weekDays(spec, f, profile.daysAvailable, paces, cfg).map((session, d) => ({
+    const days = buildDays(spec).map((session, d) => ({
       date: addDays(startDate, i * 7 + d), dayIndex: d, session: session ? { ...session, id: `w${i + 1}d${d}` } : null
     }));
     const km = round1(days.reduce((s, day) => s + (day.session ? measure(day.session.steps, paces).km : 0), 0));
@@ -274,7 +297,7 @@ export function generatePlan(profile, options = {}) {
   const week1Info = profile.weeklyKm != null && profile.longestRunKm != null ? { km: week1.km, longKm: longOfWeek1 ? measure(longOfWeek1.steps, paces).km : 0 } : null;
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
-    distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,
+    method, distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,
     startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: goalPace, goalPaceSec: goalPace,
     daysPerWeek: profile.daysAvailable, totalWeeks: n, status: "active", weeks, warnings,
     adjustments: [], feasibility: assessFeasibility(profile, week1Info, cfg.km),

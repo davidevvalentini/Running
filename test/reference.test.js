@@ -11,7 +11,7 @@ const refs = JSON.parse(fs.readFileSync(new URL("./fixtures/reference.json", imp
 const TOLERANCE = { tenk_40: 0.14, half_2h00_rf1: 0.09 };
 
 for (const r of refs) {
-  const plan = generatePlan({ distance: r.distance, goalTimeSec: r.goalSec, raceDate: "2027-01-31", daysAvailable: r.days, weeklyKm: 40, longestRunKm: 18 }, { today: "2026-06-01" });
+  const plan = generatePlan({ method: "goandrace", distance: r.distance, goalTimeSec: r.goalSec, raceDate: "2027-01-31", daysAvailable: r.days, weeklyKm: 40, longestRunKm: 18 }, { today: "2026-06-01" });
   const s = planSummary(plan);
 
   test(`${r.name}: stessa durata del piano`, () => assert.equal(plan.totalWeeks, r.weeks));

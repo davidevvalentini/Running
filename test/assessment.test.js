@@ -5,7 +5,7 @@ import { generatePlan, planSummary, validateProfile, assessFeasibility } from ".
 import { sanitize } from "../src/storage/local-store.js";
 
 const t5 = (sec, rpe = 9) => [{ id: "t1", type: "tt5k", date: "2026-10-13", durationSec: sec, rpe }];
-const plan = generatePlan({ goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4 }, { today: "2026-10-11" });
+const plan = generatePlan({ method: "goandrace", goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4 }, { today: "2026-10-11" });
 const paces = planSummary(plan).paces;
 
 test("il profilo non richiede più km settimanali né lungo recente", () => {
@@ -16,7 +16,7 @@ test("il profilo non richiede più km settimanali né lungo recente", () => {
 });
 
 test("il volume non dipende dall'input: stesso piano con o senza km dichiarati", () => {
-  const a = generatePlan({ goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 10, longestRunKm: 5 }, { today: "2026-10-11" });
+  const a = generatePlan({ method: "goandrace", goalTimeSec: 14400, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 10, longestRunKm: 5 }, { today: "2026-10-11" });
   assert.equal(planSummary(a).totalKm, planSummary(plan).totalKm);
 });
 

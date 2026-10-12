@@ -6,7 +6,7 @@ import { effectiveSession, moveSession, moveTargets } from "../src/domain/adapt.
 import { hrZones, weeklyLoad, weatherAdvice, fetchWeather } from "../src/domain/extras.js";
 
 const base = { raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRunKm: 16 };
-const plan = generatePlan({ ...base, goalTimeSec: 4 * 3600 }, { today: "2026-10-11" });
+const plan = generatePlan({ ...base, method: "goandrace", goalTimeSec: 4 * 3600 }, { today: "2026-10-11" });
 
 test("mezza maratona: 12 settimane, gara 21,1 km, ritmo gara = ritmo obiettivo", () => {
   const p = generatePlan({ ...base, distance: "half", goalTimeSec: 2 * 3600 }, { today: "2026-10-11", });

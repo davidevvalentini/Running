@@ -29,7 +29,7 @@ export function effectiveSession(plan, day) {
   const active = (plan.adjustments ?? []).filter(a => inRange(a, day.date));
   const factor = Math.min(1, ...active.map(a => a.volumeFactor ?? 1));
   let result = session;
-  if (active.some(a => a.qualityToEasy) && result.kind === "quality") result = easyReplacement(result, paces);
+  if (active.some(a => a.qualityToEasy) && result.kind === "quality") result = easyReplacement(result, paces, plan.method === "manuale" ? "FL" : "CL");
   if (factor < 1) result = scaleSession(result, factor);
   return { ...result, paces, ...measure(result.steps, paces) };
 }

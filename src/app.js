@@ -1,5 +1,5 @@
 import { generatePlan, planSummary, requiredAbilities, recommendedDays, assessFeasibility, addDays, DISTANCES, wdShort } from "./domain/plan.js";
-import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES } from "./domain/paces.js";
+import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES, paceName, REST_CODE } from "./domain/paces.js";
 import { expandSteps, notation } from "./domain/session.js";
 import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, weekAdherence } from "./domain/adapt.js";
 import { fetchWeather, hrZones, weatherAdvice, weeklyLoad } from "./domain/extras.js";
@@ -76,14 +76,14 @@ function stepRows(eff) {
   return eff.steps.map(step => {
     if (step.k === "run") {
       const cls = step.code === "RIS" ? "warm" : step.code === "DEF" ? "rec" : "work";
-      return `<div class="step ${cls}"><div><strong>${esc(RUN_NAMES[step.code] ?? step.code)}</strong><br><small>${esc(step.code)} · ${fmtKm(step.km)} km</small></div><b>${fmtPace(eff.paces[step.code])}/km</b></div>`;
+      return `<div class="step ${cls}"><div><strong>${esc(RUN_NAMES[step.code] ?? paceName(step.code))}</strong><br><small>${esc(step.code)} · ${fmtKm(step.km)} km</small></div><b>${fmtPace(eff.paces[step.code])}/km</b></div>`;
     }
-    return `<div class="step work"><div><strong>${step.n} × ${fmtKm(step.workKm)} km</strong> <small>${esc(step.workCode)}</small><br><small>recupero ${fmtDuration(step.recSec)} · ${esc(step.recCode)} a ${fmtPace(eff.paces[step.recCode])}/km</small></div><b>${fmtPace(eff.paces[step.workCode])}/km</b></div>`;
+    return `<div class="step work"><div><strong>${step.n} × ${fmtKm(step.workKm)} km</strong> <small>${esc(step.workCode)}</small><br><small>recupero ${fmtDuration(step.recSec)} · ${step.recCode === REST_CODE ? "da fermo" : `${esc(step.recCode)} a ${fmtPace(eff.paces[step.recCode])}/km`}</small></div><b>${fmtPace(eff.paces[step.workCode])}/km</b></div>`;
   }).join("");
 }
 function sessionBlock(eff) {
   const hasReps = eff.steps.some(s => s.k === "reps");
-  return `<div class="notation">${esc(notation(eff.steps))}</div>
+  return `${eff.note ? `<p class="note">${esc(eff.note)}</p>` : ""}<div class="notation">${esc(notation(eff.steps))}</div>
     <div class="stats"><div class="stat"><span>Distanza</span><strong>${fmtKm(eff.km)} km</strong></div><div class="stat"><span>Durata</span><strong>${fmtDuration(eff.sec)}</strong></div><div class="stat"><span>Media</span><strong>${fmtPace(eff.avgPaceSec)}</strong></div></div>
     <div class="steps">${stepRows(eff)}</div>
     ${hasReps ? `<details class="fold" style="margin-top:12px"><summary>Dettaglio di tutte le ripetute</summary><div class="fold-body steps">${expandSteps(eff.steps, eff.paces).map(s => `<div class="step ${s.title.startsWith("Ripetuta") ? "work" : "rec"}"><div>${esc(s.title)}<br><small>${esc(s.detail)}</small></div><b>${fmtDuration(s.sec)}</b></div>`).join("")}</div></details>` : ""}`;
@@ -258,7 +258,7 @@ function renderPiano() {
     ${plan.adjustments?.length ? `<p class="note">Adattamenti applicati: ${plan.adjustments.map(a => esc(a.title)).join(" · ")}.</p>` : ""}</div>`;
   html += `<div class="card"><h2>Capacità richieste per ${esc(fmtGoal(plan.goalTimeSec))}</h2><div class="kv" style="margin-top:12px"><div><span>VMA stimata</span><strong>${req.vma} km/h</strong></div><div><span>5 km</span><strong>${fmtDuration(req.t5)}</strong></div><div><span>10 km</span><strong>${fmtDuration(req.t10)}</strong></div><div><span>Mezza</span><strong>${fmtDuration(req.half)}</strong></div></div>
     <p class="note"><strong>Probabilità di successo: ${esc(feas.level)}.</strong> ${feas.notes.map(esc).join(" ")}</p><p class="note">Valori equivalenti (formula di Riegel) a titolo indicativo, non un test fisiologico.</p></div>`;
-  html += `<div class="card"><details class="fold"><summary>Ritmi e zone di allenamento</summary><div class="fold-body"><div class="legend">${["GARA", "Z2-CLR", "LQ", "RIS", "CL", "CM", "CV", "RG", "RipB", "REC_B", "RipM", "REC_M", "RipL", "REC_L", "RipLL", "REC_LL", "DEF"].map(c => `<div><span title="${esc(PACE_NAMES[c] ?? "Ritmo gara")}">${esc(c === "GARA" ? "Gara" : c)}</span><b>${fmtPace(s.paces[c])}</b></div>`).join("")}</div>
+  html += `<div class="card"><details class="fold"><summary>Ritmi e zone di allenamento</summary><div class="fold-body"><div class="legend">${(plan.method === "manuale" ? ["GARA", "FL", "FM", "RG+7", "RG+15", "RG+20", "RG-5", "RG-10", "RG-15", "RG-20", "RG-25", "RG-40", "RIS"] : ["GARA", "Z2-CLR", "LQ", "RIS", "CL", "CM", "CV", "RG", "RipB", "REC_B", "RipM", "REC_M", "RipL", "REC_L", "RipLL", "REC_LL", "DEF"]).map(c => `<div><span title="${esc(paceName(c))}">${esc(c === "GARA" ? "Gara" : c)}</span><b>${fmtPace(s.paces[c])}</b></div>`).join("")}</div>
     <div class="scroll" style="margin-top:12px"><table class="table"><thead><tr><th>Zona</th><th>Sedute</th><th>FC</th><th>RPE</th><th>Scopo</th></tr></thead><tbody>${ZONES.map((z, i) => `<tr>${z.map((c, j) => `<td>${esc(j === 2 && zones ? `${zones[i].low}–${zones[i].high} bpm (${c})` : c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     <p class="note">80/20: l'80% dei km è facile, il 20% è qualità. Il lungo non supera ~3 ore di corsa: oltre, il rischio infortuni cresce più dei benefici. Riscaldamento (RIS) e defaticamento (DEF) fanno parte della seduta; i recuperi tra le ripetute si corrono, non si camminano.</p></div></details></div>`;
   html += plan.weeks.map(w => `<details class="week ${w.week === curWeek ? "current" : ""}" ${w.week === curWeek || (!curWeek && w.week === 1) ? "open" : ""}><summary><span class="wn">S${w.week}</span><span><span class="wt">${esc(w.name)}</span><br><span class="ws">${esc(PHASE[w.phase])}${w.recovery ? " · scarico" : ""} · ${fmtDate(w.days[0].date)}–${fmtDate(w.days[6].date)}</span></span><span class="wk">${fmtKm(w.km)} km</span></summary>

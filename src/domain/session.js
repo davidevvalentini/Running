@@ -1,4 +1,4 @@
-import { fmtDuration, fmtKm, fmtPace } from "./paces.js";
+import { fmtDuration, fmtKm, fmtPace, paceName, REST_CODE } from "./paces.js";
 
 // Una seduta è una lista di passi con codici-ritmo. I secondi si calcolano
 // al momento (measure) così un cambio di ritmo rivaluta l'intero piano.
@@ -12,7 +12,7 @@ export function measure(steps, paces) {
   for (const step of steps) {
     if (step.k === "run") { km += step.km; sec += step.km * paces[step.code]; }
     else {
-      const recKm = step.recSec / paces[step.recCode];
+      const recKm = step.recCode === REST_CODE ? 0 : step.recSec / paces[step.recCode];
       km += step.n * (step.workKm + recKm);
       sec += step.n * (step.workKm * paces[step.workCode] + step.recSec);
     }
@@ -38,6 +38,7 @@ export function expandSteps(steps, paces) {
     } else {
       for (let i = 1; i <= step.n; i++) {
         push(`Ripetuta ${i}/${step.n}`, `${fmtKm(step.workKm)} km a ${fmtPace(paces[step.workCode])}/km`, step.workKm, step.workKm * paces[step.workCode], step.workCode);
+        if (step.recCode === REST_CODE) { push("Recupero", `${fmtDuration(step.recSec)} da fermo`, 0, step.recSec, step.recCode); continue; }
         const recKm = step.recSec / paces[step.recCode];
         push("Recupero", `${fmtDuration(step.recSec)} a ${fmtPace(paces[step.recCode])}/km (≈ ${fmtKm(recKm)} km)`, recKm, step.recSec, step.recCode);
       }
@@ -47,7 +48,7 @@ export function expandSteps(steps, paces) {
 }
 
 function stepTitle(code) {
-  return { "Z2-CLR": "Corsa lenta rigenerante", CL: "Corsa lenta", LQ: "Lungo di qualità", CM: "Corsa media", CV: "Corsa veloce", RG: "Ritmo gara" }[code] ?? code;
+  return { "Z2-CLR": "Corsa lenta rigenerante", CL: "Corsa lenta", LQ: "Lungo di qualità", CM: "Corsa media", CV: "Corsa veloce", RG: "Ritmo gara" }[code] ?? paceName(code);
 }
 
 // Variante ridotta della seduta (aggiustamenti proposti).
@@ -58,12 +59,12 @@ export function scaleSession(session, factor) {
       if (step.code === "RIS" || step.code === "DEF") return step;
       return { ...step, km: Math.max(0.5, Math.round(step.km * factor * 2) / 2) };
     }
-    return { ...step, n: Math.max(2, Math.round(step.n * factor)) };
+    return { ...step, n: Math.max(Math.min(2, step.n), Math.round(step.n * factor)) };
   });
   return { ...session, steps, adjusted: true };
 }
 
-export function easyReplacement(session, paces) {
+export function easyReplacement(session, paces, easyCode = "CL") {
   const km = Math.max(4, Math.round(measure(session.steps, paces).km * 0.85));
-  return { kind: "easy", title: "Corsa lenta (qualità sostituita)", steps: [run("CL", km)], adjusted: true, note: "La qualità è stata sostituita da corsa lenta per favorire il recupero." };
+  return { kind: "easy", title: "Corsa lenta (qualità sostituita)", steps: [run(easyCode, km)], adjusted: true, note: "La qualità è stata sostituita da corsa lenta per favorire il recupero." };
 }

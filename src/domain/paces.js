@@ -54,6 +54,20 @@ function offsetsFor(distance, goalPace) {
   return Object.fromEntries(Object.keys(o0).map(k => [k, o0[k] + (o1[k] - o0[k]) * t]));
 }
 
+// Ritmi del piano "manuale" (Albanesi): scarti fissi in secondi/km dal ritmo gara (RG),
+// espressi con codici `RG+7`, `RG-20`... Fondo lento FL = RG+10", fondo medio FM = RG-10".
+export const MANUAL_OFFSETS = Object.freeze([-40, -25, -20, -15, -10, -5, 0, 5, 7, 10, 15, 20, 30]);
+export const manualCode = n => `RG${n >= 0 ? "+" : "-"}${Math.abs(n)}`;
+export const REST_CODE = "FERMO"; // recupero da fermo: nessun ritmo, nessun km
+
+const MANUAL_NAMES = Object.freeze({ FL: "Fondo lento (RG+10″)", FM: "Fondo medio (RG−10″)", [REST_CODE]: "Da fermo" });
+export function paceName(code) {
+  if (PACE_NAMES[code]) return PACE_NAMES[code];
+  if (MANUAL_NAMES[code]) return MANUAL_NAMES[code];
+  const m = /^RG([+-])(\d+)$/.exec(code);
+  return m ? (Number(m[2]) === 0 ? "Ritmo gara" : `Ritmo gara ${m[1] === "+" ? "+" : "−"}${m[2]}″`) : code;
+}
+
 // goalPace = ritmo della gara scelta; distance = "marathon" | "half" | "10k".
 export function buildPaces(goalPace, shiftSec = 0, distance = "marathon") {
   if (!Number.isFinite(goalPace) || goalPace < 150 || goalPace > 900) throw new RangeError("Ritmo gara fuori intervallo.");
@@ -61,6 +75,9 @@ export function buildPaces(goalPace, shiftSec = 0, distance = "marathon") {
   const paces = {};
   for (const code of Object.keys(PACE_OFFSETS)) paces[code] = roundTo5(goal + off[code]);
   paces.GARA = Math.round(goal);
+  // Ritmi del manuale: scarti esatti dal ritmo gara, al secondo.
+  for (const n of MANUAL_OFFSETS) paces[manualCode(n)] = Math.round(goal + n);
+  paces.FL = Math.round(goal + 10); paces.FM = Math.round(goal - 10);
   return paces;
 }
 
