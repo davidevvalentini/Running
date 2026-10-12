@@ -1,7 +1,7 @@
 import { generatePlan, planSummary, requiredAbilities, recommendedDays, assessFeasibility, addDays, DISTANCES, wdShort } from "./domain/plan.js";
 import { fmtDuration, fmtGoal, fmtKm, fmtPace, PACE_NAMES, paceName, REST_CODE } from "./domain/paces.js";
 import { expandSteps, notation } from "./domain/session.js";
-import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, weekAdherence } from "./domain/adapt.js";
+import { applyAdjustment, effectiveSession, locate, moveSession, moveTargets, nextSession, proposeFromFeedback, proposeFromWeek, proposeRgFromLongRun, weekAdherence } from "./domain/adapt.js";
 import { fetchWeather, hrZones, weatherAdvice, weeklyLoad } from "./domain/extras.js";
 import { TEST_DEFS, evaluateBase, evaluateGoal, latestTest, levelSummary, proposeFromTests } from "./domain/assessment.js";
 import { encodeWorkoutFit } from "./import/fit.js";
@@ -96,7 +96,7 @@ function currentProposals() {
   if (!plan || plan.status === "paused") return [];
   const feedback = [...state.feedback].sort((a, b) => b.date.localeCompare(a.date));
   const testProps = state.profile ? proposeFromTests({ plan, goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests, paces: planSummary(plan).paces, today: today(), dismissed: state.dismissed }) : [];
-  return [...testProps, ...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
+  return [...testProps, ...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeRgFromLongRun({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
 }
 function sessionActions(day, eff) {
   const plan = state.plan, targets = day.date >= today() ? moveTargets(plan, day.date, today()) : [];
@@ -250,7 +250,7 @@ function renderPiano() {
   const req = requiredAbilities(plan.goalTimeSec, plan.distanceKm ?? 42.195), feas = feasibilityNow(plan), zones = hrZones(state.profile?.maxHr);
   const race = new Date(`${plan.raceDate}T00:00:00Z`).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   let html = `<div class="card"><h2>Riepilogo del piano</h2><div class="kv" style="margin-top:12px">
-    <div><span>${esc(planLabel(plan))}</span><strong>${esc(race)}</strong></div><div><span>Obiettivo</span><strong>${esc(fmtGoal(plan.goalTimeSec))}</strong></div><div><span>Ritmo gara</span><strong>${fmtPace(s.paces.GARA)}/km</strong></div><div><span>Durata</span><strong>${plan.totalWeeks} settimane</strong></div>
+    <div><span>${esc(planLabel(plan))}</span><strong>${esc(race)}</strong></div><div><span>${plan.estimate ? "Tempo stimato" : "Obiettivo"}</span><strong>${esc(fmtGoal(plan.goalTimeSec))}${plan.provisional ? " · da confermare" : ""}</strong></div><div><span>Ritmo gara</span><strong>${fmtPace(s.paces.GARA)}/km</strong></div><div><span>Durata</span><strong>${plan.totalWeeks} settimane</strong></div>
     <div><span>Allenamenti</span><strong>${plan.daysPerWeek} / settimana</strong></div><div><span>Km totali</span><strong>${fmtKm(s.totalKm)}</strong></div><div><span>Media</span><strong>${fmtKm(s.avgKm)} km</strong></div><div><span>Picco</span><strong>S${s.peakWeek} · ${fmtKm(s.peakKm)} km</strong></div></div>
     <div class="bars" aria-label="Chilometri per settimana">${plan.weeks.map(w => `<div class="bar ${w.recovery ? "recovery" : w.phase === "taper" ? "taper" : ""} ${w.week === curWeek ? "cur" : ""}" style="height:${Math.max(4, Math.round(w.km / maxKm * 100))}%" title="Settimana ${w.week}: ${fmtKm(w.km)} km"></div>`).join("")}</div>
     <div class="bar-labels">${plan.weeks.map(w => `<span>${w.week}</span>`).join("")}</div>
@@ -314,7 +314,9 @@ function restoreProfile() {
   if (!p) return;
   f.elements.raceDate.value = p.raceDate;
   f.elements.distance.value = p.distance ?? "marathon"; syncGoalLabel();
-  setHMS(f, "goal", p.goalTimeSec, goalParts(p.distance ?? "marathon"));
+  const g = "userGoalSec" in p ? p.userGoalSec : p.goalTimeSec;
+  if (g) setHMS(f, "goal", g, goalParts(p.distance ?? "marathon"));
+  f.elements.levelBand.value = p.levelBand ?? ""; f.elements.firstMarathon.checked = Boolean(p.firstMarathon);
   f.elements.maxHr.value = p.maxHr ?? ""; f.elements.city.value = p.city ?? "";
   f.elements.daysAvailable.value = String(p.daysAvailable); f.elements.daysAvailable.dataset.touched = "1";
   f.elements.recentRaceDistance.value = p.recentRaceDistanceKm ? String(p.recentRaceDistanceKm) : "";
@@ -323,7 +325,7 @@ function restoreProfile() {
 }
 function syncGoalLabel() {
   const f = $("#profile-form"), dist = f.elements.distance.value, parts = goalParts(dist);
-  $("#goal-label").textContent = dist === "10k" ? "Tempo obiettivo (minuti e secondi)" : "Tempo obiettivo (ore e minuti)";
+  $("#goal-label").textContent = dist === "10k" ? "Tempo obiettivo, facoltativo (minuti e secondi)" : "Tempo obiettivo, facoltativo (ore e minuti)";
   for (const label of f.querySelectorAll("#goal-label ~ label")) label.hidden = !parts.includes(label.dataset.part);
   f.elements.goalH.placeholder = dist === "half" ? "2" : "4";
   f.elements.goalM.placeholder = dist === "10k" ? "55" : "00";
@@ -344,24 +346,25 @@ $("#profile-form").addEventListener("submit", e => {
   try {
     const dist = f.elements.distance.value, cfg = DISTANCES[dist];
     const goal = readGoalSec(f);
-    if (!goal) throw new Error(dist === "10k" ? "Inserisci il tempo obiettivo (minuti e secondi)." : "Inserisci il tempo obiettivo (ore e minuti).");
-    const raceTime = readRaceSec(f);
+    const raceTime = readRaceSec(f), levelBand = f.elements.levelBand.value || null;
+    if (dist !== "marathon" && !goal) throw new Error(dist === "10k" ? "Inserisci il tempo obiettivo (minuti e secondi)." : "Inserisci il tempo obiettivo (ore e minuti).");
+    if (dist === "marathon" && !goal && !raceTime && !levelBand) throw new Error("Indica una gara recente (meglio una mezza) oppure il tuo livello; se non sai nulla scegli «Non lo so».");
     const profile = {
       distance: dist, maxHr: f.elements.maxHr.value ? Number(f.elements.maxHr.value) : null, city: f.elements.city.value.trim() || null,
-      raceDate: f.elements.raceDate.value, goalTimeSec: goal, daysAvailable: Number(f.elements.daysAvailable.value),
+      raceDate: f.elements.raceDate.value, goalTimeSec: goal || null, levelBand, firstMarathon: f.elements.firstMarathon.checked, daysAvailable: Number(f.elements.daysAvailable.value),
       recentRaceDistanceKm: f.elements.recentRaceDistance.value ? Number(f.elements.recentRaceDistance.value) : null,
       recentRaceTimeSec: raceTime, hasConcerningSymptoms: f.elements.symptoms.checked
     };
     if (profile.recentRaceDistanceKm && !raceTime) throw new Error("Indica anche il tempo della gara recente.");
     if (!profile.recentRaceDistanceKm && raceTime) throw new Error("Indica anche la distanza della gara recente.");
-    const core = x => JSON.stringify([x?.distance ?? "marathon", x?.raceDate, x?.goalTimeSec, x?.daysAvailable, x?.recentRaceDistanceKm ?? null, x?.recentRaceTimeSec ?? null, Boolean(x?.hasConcerningSymptoms)]);
+    const core = x => JSON.stringify([x?.distance ?? "marathon", x?.raceDate, x?.goalTimeSec ?? null, x?.levelBand ?? null, Boolean(x?.firstMarathon), x?.daysAvailable, x?.recentRaceDistanceKm ?? null, x?.recentRaceTimeSec ?? null, Boolean(x?.hasConcerningSymptoms)]);
     if (state.plan && state.profile && core(state.profile) === core(profile)) {
       state.profile = profile; persist(); renderAll(); restoreProfile();
       err.textContent = "Preferenze salvate (il piano non è cambiato)."; err.className = "note ok"; err.hidden = false; return;
     }
     err.className = "note err";
     if (state.plan && !confirm("Esiste già un piano. Sostituirlo? Allenamenti e riscontri registrati restano, gli adattamenti accettati no.")) return;
-    const plan = generatePlan(profile, { today: today() });
+    const plan = generatePlan(profile, { today: today(), tests: state.tests });
     state.profile = profile; state.plan = plan; state.dismissed = []; persist();
     location.hash = "#oggi"; renderAll(); route();
   } catch (error) { err.textContent = error.message; err.hidden = false; }
@@ -375,8 +378,8 @@ document.addEventListener("click", e => {
     const p = currentProposals().find(x => x.id === t.dataset.accept); if (!p) return;
     if (p.kind === "goal") {
       try {
-        const profile = { ...state.profile, goalTimeSec: p.newGoalSec, hasConcerningSymptoms: false };
-        state.plan = generatePlan(profile, { today: today() }); state.profile = profile; restoreProfile();
+        const profile = { ...state.profile, userGoalSec: "userGoalSec" in state.profile ? state.profile.userGoalSec : state.profile.goalTimeSec ?? null, goalTimeSec: p.newGoalSec, rgTimeSec: p.newGoalSec, hasConcerningSymptoms: false };
+        state.plan = generatePlan(profile, { today: today(), tests: state.tests }); state.profile = profile; restoreProfile();
       } catch (error) { alert(error.message); return; }
     } else state.plan = p.kind === "pause" ? { ...state.plan, status: "paused" } : applyAdjustment(state.plan, p, today());
     persist(); return renderAll();

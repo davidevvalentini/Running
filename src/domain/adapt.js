@@ -1,4 +1,4 @@
-import { buildPaces } from "./paces.js";
+import { buildPaces, fmtGoal } from "./paces.js";
 import { easyReplacement, measure, scaleSession } from "./session.js";
 import { addDays } from "./plan.js";
 
@@ -116,6 +116,33 @@ export function proposeFromFeedback({ plan, feedback, today, dismissed = [] }) {
       { fromDate: from, toDate: to, volumeFactor: 0.9 }));
   }
   return out.filter(p => !dismissed.includes(p.id) && !(plan.adjustments ?? []).some(a => a.id === p.id));
+}
+
+// Dopo il lunghissimo da 36 km del manuale (settimana "Lunghissimo da 36 km") si verifica il ritmo gara:
+// se il lungo è stato corso a un passo medio diverso da quello previsto, propone di ritoccare RG
+// (rigenera il piano con il nuovo tempo). Il manuale: se non riesci a correrlo a RG+7″ "ritocca RG".
+export function proposeRgFromLongRun({ plan, feedback, today, dismissed = [] }) {
+  if (plan.method !== "manuale" || today > plan.raceDate) return [];
+  const week = plan.weeks.find(w => w.name === "Lunghissimo da 36 km");
+  if (!week) return [];
+  const start = week.days[0].date, end = week.days[6].date;
+  const f = (feedback ?? []).filter(x => x.planId === plan.id && x.kind === "long" && x.date >= start && x.date <= end
+    && x.completion !== "skipped" && x.actualKm >= 30 && x.durationSec && !x.pain).sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!f) return [];
+  const planned = f.plannedAvgPaceSec ?? (plan.goalPaceSec + 6);
+  const delta = Math.max(-15, Math.min(30, Math.round(avgPace(f) - planned)));
+  const slower = delta >= 4 || (f.fatigue && delta >= 2), faster = delta <= -4 && f.rpe != null && f.rpe <= 6 && !f.fatigue;
+  if (!slower && !faster) return [];
+  const newSec = Math.round(((plan.goalPaceSec + delta) * plan.distanceKm) / 60) * 60;
+  if (Math.abs(newSec - plan.goalTimeSec) < 60) return [];
+  const id = `rg36:${f.date}`;
+  if (dismissed.includes(id)) return [];
+  const label = fmtGoal(newSec);
+  return [{ id, kind: "goal", newGoalSec: newSec,
+    title: slower ? `Ritocca il ritmo gara: maratona in ${label}` : `Puoi alzare il ritmo gara: maratona in ${label}`,
+    reason: slower
+      ? `Il lunghissimo da 36 km è stato ${Math.abs(delta)}″/km più lento del previsto: il manuale dice di ritoccare RG se non riesci a correrlo a RG+7″. Rigenero il piano con ${label}, ritmi inclusi.`
+      : `Il lunghissimo da 36 km è stato ${Math.abs(delta)}″/km più veloce del previsto con sforzo contenuto (RPE ${f.rpe}): puoi puntare a ${label}. Rigenero il piano con i nuovi ritmi.` }];
 }
 
 // Aderenza settimanale: km previsti (aggiustamenti inclusi) vs. km registrati.

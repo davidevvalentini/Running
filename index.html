@@ -50,7 +50,7 @@
     <section id="view-profilo" class="view" hidden>
       <div class="card">
         <h2>Il tuo obiettivo</h2>
-        <p class="note">Il piano è calcolato all'indietro dalla data della gara: ritmi, volumi (che crescono con la fase del piano) e lunghi si adattano al tempo obiettivo. Livello di partenza e passo gara realistico si stabiliscono con i test iniziali, nella scheda Oggi. La città serve solo a mostrare le previsioni (servizio Open-Meteo).</p>
+        <p class="note">Il piano è calcolato all'indietro dalla data della gara. Per la maratona il ritmo gara si stima dai tuoi dati (mezza × 2,2, oppure 10 km + 30″/km): indica una gara recente o il tuo livello. Il tempo obiettivo è facoltativo e viene solo confrontato con la stima. Se non sai nulla di te, scegli «Non lo so»: il piano parte prudente, da confermare con il test sui 5 km nella scheda Oggi. Livello di partenza e passo gara realistico si stabiliscono con i test iniziali, nella scheda Oggi. La città serve solo a mostrare le previsioni (servizio Open-Meteo).</p>
         <form id="profile-form" class="form">
           <div class="grid2">
             <label>Gara<select name="distance"><option value="marathon">Maratona</option><option value="half">Mezza maratona</option><option value="10k">10 km</option></select></label>
@@ -67,6 +67,8 @@
               <label>minuti<input type="number" inputmode="numeric" name="raceM" min="0" max="59" step="1" placeholder="52"></label>
               <label>secondi<input type="number" inputmode="numeric" name="raceS" min="0" max="59" step="1" placeholder="30"></label>
             </fieldset>
+            <label>Livello, se non hai una gara recente<select name="levelBand"><option value="">—</option><option value="u40">10 km sotto i 40'</option><option value="40-45">10 km tra 40' e 45'</option><option value="45-50">10 km tra 45' e 50'</option><option value="50-55">10 km tra 50' e 55'</option><option value="o55">10 km oltre i 55'</option><option value="unknown">Non lo so</option></select></label>
+            <label class="check"><input type="checkbox" name="firstMarathon"><span>È la mia prima maratona (ritmo gara +20″/km)</span></label>
             <label>FC massima (facoltativa)<input type="number" name="maxHr" min="120" max="230" step="1" placeholder="es. 188"></label>
             <label>Città per il meteo (facoltativa)<input type="text" name="city" maxlength="60" placeholder="es. Milano"></label>
           </div>

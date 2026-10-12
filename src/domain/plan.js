@@ -1,5 +1,6 @@
 import { buildPaces, fmtGoal } from "./paces.js";
 import { MANUALE_WEEKS, MANUALE_8_WEEKS, manualeWeekDays, DAYS_PENALTY_SEC } from "./manuale.js";
+import { estimateMarathon, estimateWarnings } from "./rg.js";
 import { measure, reps, run } from "./session.js";
 import { isValidISODate } from "./models.js";
 
@@ -211,6 +212,7 @@ export function validateProfile(p) {
   if (!p || typeof p !== "object") return { ok: false, errors: ["Profilo non valido."] };
   const cfg = DISTANCES[p.distance ?? "marathon"];
   if (!cfg) errors.push("Distanza di gara non supportata.");
+  else if (p.goalTimeSec == null && cfg.key === "marathon" && true) { /* obiettivo facoltativo: il ritmo gara si stima dai dati */ }
   else if (!Number.isFinite(p.goalTimeSec) || p.goalTimeSec < cfg.minGoal || p.goalTimeSec > cfg.maxGoal) errors.push(`Il tempo obiettivo per ${cfg.label} deve essere tra ${fmtLimit(cfg.minGoal)} e ${fmtLimit(cfg.maxGoal)}.`);
   if (!isValidISODate(p.raceDate)) errors.push("Data gara non valida.");
   if (!Number.isInteger(p.daysAvailable) || p.daysAvailable < 3 || p.daysAvailable > 6) errors.push("Scegli da 3 a 6 giorni di corsa a settimana.");
@@ -227,22 +229,29 @@ export function validateProfile(p) {
 }
 const fmtLimit = sec => (sec >= 3600 ? `${Math.floor(sec / 3600)}h${String(Math.round((sec % 3600) / 60)).padStart(2, "0")}` : `${Math.round(sec / 60)}'`);
 
-export function generatePlan(profile, options = {}) {
-  const v = validateProfile(profile);
+export function generatePlan(profileIn, options = {}) {
+  const v = validateProfile(profileIn);
   if (!v.ok) throw new TypeError(v.errors.join(" "));
-  if (profile.hasConcerningSymptoms) throw new Error("Generazione sospesa: dolore o sintomi insoliti vanno valutati prima di iniziare.");
-  const cfg = DISTANCES[profile.distance ?? "marathon"];
+  if (profileIn.hasConcerningSymptoms) throw new Error("Generazione sospesa: dolore o sintomi insoliti vanno valutati prima di iniziare.");
+  const cfg = DISTANCES[profileIn.distance ?? "marathon"];
   const today = options.today ?? new Date().toISOString().slice(0, 10);
   if (!isValidISODate(today)) throw new RangeError("Data odierna non valida.");
-  const daysToRace = Math.round((Date.parse(`${profile.raceDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY);
+  const daysToRace = Math.round((Date.parse(`${profileIn.raceDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY);
   if (daysToRace < 0) throw new RangeError("La data della gara deve essere futura.");
   const weeksAvail = Math.floor((daysToRace + 1) / 7);
   if (weeksAvail < 4) throw new RangeError("Servono almeno 4 settimane piene prima della gara.");
 
-  const goalPace = profile.goalTimeSec / cfg.km;
-  const paces = buildPaces(goalPace, 0, cfg.key);
   // Maratona: di default il piano del manuale (Albanesi); "goandrace" mantiene la calibrazione sui piani di riferimento.
-  const method = cfg.key === "marathon" && (profile.method ?? "manuale") === "manuale" ? "manuale" : "goandrace";
+  const method = cfg.key === "marathon" && (profileIn.method ?? "manuale") === "manuale" ? "manuale" : "goandrace";
+  // Ritmo gara: correzione esplicita (rgTimeSec) > stima dai dati (solo metodo del manuale) > obiettivo.
+  // L'obiettivo, se c'è, viene solo confrontato con la stima.
+  const est = cfg.key === "marathon" ? estimateMarathon(profileIn, options.tests ?? []) : null;
+  const rgSec = profileIn.rgTimeSec ?? (method === "manuale" ? est?.sec : null) ?? profileIn.goalTimeSec ?? est?.sec;
+  if (!Number.isFinite(rgSec)) throw new TypeError("Indica una gara recente o il tuo livello, oppure fai prima il test sui 5 km.");
+  if (rgSec < cfg.minGoal || rgSec > cfg.maxGoal) throw new RangeError("Il ritmo gara stimato è fuori dai limiti supportati: indica un tempo obiettivo.");
+  const profile = { ...profileIn, goalTimeSec: rgSec };
+  const goalPace = rgSec / cfg.km;
+  const paces = buildPaces(goalPace, 0, cfg.key);
   const warnings = [];
   let used, buildDays, startDate, n;
   if (method === "manuale") {
@@ -259,7 +268,13 @@ export function generatePlan(profile, options = {}) {
     if (weeksAvail < 8) warnings.push("Con meno di 8 settimane la preparazione completa non è realistica: considera una gara più avanti.");
     if (profile.daysAvailable < 6) warnings.push(`Con ${profile.daysAvailable} giorni a settimana si eliminano le sedute di scarico (secondo il manuale ${profile.daysAvailable === 5 ? "S5" : profile.daysAvailable === 4 ? "S1 e S5" : "S1, S2 e S5"}) e a parità di impegno il ritmo gara è circa ${DAYS_PENALTY_SEC[profile.daysAvailable]}″/km più lento che con 6 sedute.`);
     // Il manuale stima la maratona come 2,2 × mezza (evoluti: meno). Sotto 2,15 l'obiettivo è fuori portata.
-    if (profile.recentRaceDistanceKm === 21.0975 && profile.goalTimeSec < 2.15 * profile.recentRaceTimeSec) warnings.push(`Dalla tua mezza il manuale stima circa ${fmtGoal(Math.round(2.2 * profile.recentRaceTimeSec))} (mezza × 2,2): l'obiettivo è più veloce di 2,15 × mezza, valuta un RG più lento.`);
+    const userGoal = profileIn.goalTimeSec;
+    if (est && profileIn.rgTimeSec == null) {
+      const how = { mezza: "dalla tua mezza (× 2,2)", "10k": "dai tuoi 10 km (+30″/km)", "5k": "dai tuoi 5 km (convertiti in 10 km, +30″/km)", test5k: "dal test sui 5 km (convertito in 10 km, +30″/km)", livello: "dal livello dichiarato (10 km + 30″/km)" }[est.source];
+      warnings.push(`Ritmo gara stimato ${how}: maratona in circa ${fmtGoal(rgSec)}.`, ...est.notes.filter(x => !x.startsWith("Stima provvisoria")), ...estimateWarnings(est));
+      if (userGoal != null && userGoal < rgSec * 0.97) warnings.push(`Il tuo obiettivo (${fmtGoal(userGoal)}) è più veloce della stima: il piano usa la stima. Dopo il lunghissimo da 36 km, se è andato bene, potrai alzare il ritmo.`);
+    }
+    if (userGoal != null && profile.recentRaceDistanceKm === 21.0975 && userGoal < 2.15 * profile.recentRaceTimeSec) warnings.push(`Dalla tua mezza il manuale stima circa ${fmtGoal(Math.round(2.2 * profile.recentRaceTimeSec))} (mezza × 2,2): l'obiettivo è più veloce di 2,15 × mezza, valuta un RG più lento.`);
   } else {
     const tplWeeks = [];
     if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
@@ -298,7 +313,7 @@ export function generatePlan(profile, options = {}) {
   return {
     id: options.id ?? `plan-${Date.now()}`, version: 1, generatedAt: new Date().toISOString(),
     method, distance: cfg.key, distanceKm: cfg.km, distanceLabel: cfg.label,
-    startDate, raceDate: profile.raceDate, goalTimeSec: profile.goalTimeSec, racePaceSec: goalPace, goalPaceSec: goalPace,
+    startDate, raceDate: profile.raceDate, goalTimeSec: rgSec, targetTimeSec: profileIn.goalTimeSec ?? null, estimate: est ? { source: est.source, provisional: est.provisional, sec: est.sec } : null, provisional: Boolean(est?.provisional && profileIn.rgTimeSec == null), racePaceSec: goalPace, goalPaceSec: goalPace,
     daysPerWeek: profile.daysAvailable, totalWeeks: n, status: "active", weeks, warnings,
     adjustments: [], feasibility: assessFeasibility(profile, week1Info, cfg.km),
     disclaimer: "Piano indicativo, non consulto medico né coaching validato clinicamente. Interrompi in caso di dolore o sintomi insoliti. L'esito in gara non è garantito."
