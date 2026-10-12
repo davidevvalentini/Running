@@ -95,7 +95,7 @@ function currentProposals() {
   const plan = state.plan;
   if (!plan || plan.status === "paused") return [];
   const feedback = [...state.feedback].sort((a, b) => b.date.localeCompare(a.date));
-  const testProps = state.profile ? proposeFromTests({ plan, goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests, paces: planSummary(plan).paces, today: today(), dismissed: state.dismissed }) : [];
+  const testProps = state.profile ? proposeFromTests({ plan, goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests, paces: planSummary(plan).paces, today: today(), dismissed: state.dismissed, firstMarathon: Boolean(state.profile?.firstMarathon) }) : [];
   return [...testProps, ...proposeFromFeedback({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeRgFromLongRun({ plan, feedback, today: today(), dismissed: state.dismissed }), ...proposeFromWeek({ plan, workouts: state.workouts, today: today(), dismissed: state.dismissed })];
 }
 function sessionActions(day, eff) {
@@ -139,7 +139,7 @@ function testsCard({ compact = false } = {}) {
     <p class="note">${esc(def.why)}</p>
     ${done[i] ? `<p class="note"><strong>${esc(testResultLine(done[i]))}</strong> · ${fmtDate(done[i].date)} <button class="link" data-undo-test="${esc(done[i].id)}" type="button">Rifai</button></p>`
       : `<details class="fold" ${compact ? "" : "open"}><summary>Come si fa</summary><div class="fold-body"><ol class="how">${def.how.map(h => `<li>${esc(h)}</li>`).join("")}</ol>${testForm(def)}</div></details>`}</div>`).join("");
-  const goalEval = evaluateGoal({ goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests });
+  const goalEval = evaluateGoal({ goalSec: plan.goalTimeSec, distance: plan.distance ?? "marathon", tests: state.tests, method: plan.method, firstMarathon: Boolean(state.profile?.firstMarathon) });
   const baseEval = evaluateBase({ z2PaceSec: planSummary(plan).paces["Z2-CLR"], tests: state.tests });
   let evalHtml = "";
   if (goalEval || baseEval) {

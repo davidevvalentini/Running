@@ -21,10 +21,11 @@ export function measure(steps, paces) {
 }
 
 // Notazione compatta: "3 km RIS + 6 x (0,8 km RipM + 2'30" REC_M) + 1 km DEF"
+const codeLabel = code => (code === "RG+0" ? "RG" : code === REST_CODE ? "da fermo" : code);
 export function notation(steps) {
   return steps.map(step => step.k === "run"
-    ? `${fmtKm(step.km)} km ${step.code}`
-    : `${step.n} x (${fmtKm(step.workKm)} km ${step.workCode} + ${fmtDuration(step.recSec)} ${step.recCode})`).join(" + ");
+    ? `${fmtKm(step.km)} km ${codeLabel(step.code)}`
+    : `${step.n} x (${fmtKm(step.workKm)} km ${codeLabel(step.workCode)} + ${fmtDuration(step.recSec)} ${codeLabel(step.recCode)})`).join(" + ");
 }
 
 // Passi espansi, uno per riga, come su un orologio sportivo.
