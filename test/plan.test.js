@@ -5,7 +5,7 @@ import { measure, notation, expandSteps, run, reps, scaleSession } from "../src/
 import { buildPaces, fmtDuration } from "../src/domain/paces.js";
 import { effectiveSession, applyAdjustment, proposeFromFeedback, proposeFromWeek, locate } from "../src/domain/adapt.js";
 
-const profile = { goalTimeSec: 4 * 3600, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRunKm: 16 };
+const profile = { method: "goandrace", goalTimeSec: 4 * 3600, raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRunKm: 16 };
 const plan = generatePlan(profile, { today: "2026-10-11" });
 
 test("ritmi a 4h00 come nel riferimento", () => {
