@@ -1,5 +1,6 @@
 import { buildPaces, fmtGoal } from "./paces.js";
 import { MANUALE_WEEKS, MANUALE_8_WEEKS, manualeWeekDays, DAYS_PENALTY_SEC } from "./manuale.js";
+import { MEZZA_WEEKS, mezzaWeekDays } from "./mezza.js";
 import { estimateMarathon, estimateWarnings } from "./rg.js";
 import { measure, reps, run } from "./session.js";
 import { isValidISODate } from "./models.js";
@@ -223,7 +224,7 @@ export function validateProfile(p) {
   if (hasD !== hasT) errors.push("Indica distanza e tempo della gara recente insieme.");
   if (hasD && ![5, 10, 21.0975].includes(p.recentRaceDistanceKm)) errors.push("La gara recente deve essere 5, 10 o mezza maratona.");
   if (hasT && (!Number.isFinite(p.recentRaceTimeSec) || p.recentRaceTimeSec < 600 || p.recentRaceTimeSec > 8 * 3600)) errors.push("Il tempo della gara recente non è plausibile.");
-  if (p.method != null && !["manuale", "goandrace"].includes(p.method)) errors.push("Metodo di preparazione non supportato.");
+  if (p.method != null && !["manuale", "mezza8", "goandrace"].includes(p.method)) errors.push("Metodo di preparazione non supportato.");
   if (p.maxHr != null && (!Number.isFinite(p.maxHr) || p.maxHr < 120 || p.maxHr > 230)) errors.push("La frequenza massima deve essere tra 120 e 230 bpm.");
   return { ok: errors.length === 0, errors };
 }
@@ -242,7 +243,8 @@ export function generatePlan(profileIn, options = {}) {
   if (weeksAvail < 4) throw new RangeError("Servono almeno 4 settimane piene prima della gara.");
 
   // Maratona: di default il piano del manuale (Albanesi); "goandrace" mantiene la calibrazione sui piani di riferimento.
-  const method = cfg.key === "marathon" && (profileIn.method ?? "manuale") === "manuale" ? "manuale" : "goandrace";
+  const method = cfg.key === "marathon" && (profileIn.method ?? "manuale") === "manuale" ? "manuale"
+    : cfg.key === "half" && (profileIn.method ?? "mezza8") === "mezza8" ? "mezza8" : "goandrace";
   // Ritmo gara: correzione esplicita (rgTimeSec) > stima dai dati (solo metodo del manuale) > obiettivo.
   // L'obiettivo, se c'è, viene solo confrontato con la stima.
   const est = cfg.key === "marathon" ? estimateMarathon(profileIn, options.tests ?? []) : null;
@@ -275,6 +277,18 @@ export function generatePlan(profileIn, options = {}) {
       if (userGoal != null && userGoal < rgSec * 0.97) warnings.push(`Il tuo obiettivo (${fmtGoal(userGoal)}) è più veloce della stima: il piano usa la stima. Dopo il lunghissimo da 36 km, se è andato bene, potrai alzare il ritmo.`);
     }
     if (userGoal != null && profile.recentRaceDistanceKm === 21.0975 && userGoal < 2.15 * profile.recentRaceTimeSec) warnings.push(`Dalla tua mezza il manuale stima circa ${fmtGoal(Math.round(2.2 * profile.recentRaceTimeSec))} (mezza × 2,2): l'obiettivo è più veloce di 2,15 × mezza, valuta un RG più lento.`);
+  } else if (method === "mezza8") {
+    used = weeksAvail >= MEZZA_WEEKS.length ? MEZZA_WEEKS : MEZZA_WEEKS.slice(-weeksAvail);
+    n = used.length;
+    buildDays = spec => {
+      const out = mezzaWeekDays(spec, profile.daysAvailable, paces);
+      if (spec.race) out[6] = raceSession(cfg);
+      return out;
+    };
+    warnings.push("Programma a 8 settimane con 3 sedute fisse (lunedì, giovedì, sabato) e test di verifica del ritmo gara. Il ritmo lento è RG+35″ e il fondo medio RG+20″.");
+    warnings.push("Il ritmo gara si verifica con i test: il test sui 5 km (RG = ritmo del test + 20″) e il test da 15 km a RG. Se non riesci a tenerli, ritocca il tempo obiettivo.");
+    if (profile.daysAvailable > 3) warnings.push(`Con ${profile.daysAvailable} giorni a settimana aggiungo fondi lenti facoltativi (6-8 km): non sono nel programma di riferimento, che ne prevede 3.`);
+    if (weeksAvail < MEZZA_WEEKS.length) warnings.push(`Mancano settimane: il programma ne prevede ${MEZZA_WEEKS.length}. Parti dalle ultime ${weeksAvail}, a condizione di avere già una buona base.`);
   } else {
     const tplWeeks = [];
     if (cfg.key === "marathon" && profile.goalTimeSec < cfg.extraWeeksBelow) {
