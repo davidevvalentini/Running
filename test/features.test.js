@@ -9,7 +9,7 @@ const base = { raceDate: "2027-01-31", daysAvailable: 4, weeklyKm: 30, longestRu
 const plan = generatePlan({ ...base, method: "goandrace", goalTimeSec: 4 * 3600 }, { today: "2026-10-11" });
 
 test("mezza maratona: 12 settimane, gara 21,1 km, ritmo gara = ritmo obiettivo", () => {
-  const p = generatePlan({ ...base, distance: "half", goalTimeSec: 2 * 3600 }, { today: "2026-10-11", });
+  const p = generatePlan({ ...base, distance: "half", method: "goandrace", goalTimeSec: 2 * 3600 }, { today: "2026-10-11", });
   assert.equal(p.totalWeeks, 12); assert.equal(p.distanceLabel, "Mezza maratona");
   const race = p.weeks.at(-1).days[6].session;
   assert.equal(race.kind, "race"); assert.equal(race.title, "Mezza maratona");

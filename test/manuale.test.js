@@ -25,9 +25,10 @@ test("ritmi del manuale: scarti esatti dal ritmo gara, al secondo", () => {
   assert.equal(p["RG+15"], 315); assert.equal(p["RG+30"], 330); assert.equal(p["RG-40"], 260);
 });
 
-test("maratona: di default il piano del manuale, 12 settimane; mezza e 10 km restano invariati", () => {
+test("maratona: di default il piano del manuale, 12 settimane; la mezza usa il suo programma, la 10 km resta invariata", () => {
   assert.equal(plan.method, "manuale"); assert.equal(plan.totalWeeks, 12); assert.equal(plan.startDate, addDays(base.raceDate, -83));
-  assert.equal(generatePlan({ ...base, distance: "half", goalTimeSec: 6300 }, { today: TODAY }).method, "goandrace");
+  assert.equal(generatePlan({ ...base, distance: "half", goalTimeSec: 6300 }, { today: TODAY }).method, "mezza8");
+  assert.equal(generatePlan({ ...base, distance: "10k", goalTimeSec: 3000 }, { today: TODAY }).method, "goandrace");
   assert.equal(generatePlan({ ...base, method: "goandrace" }, { today: TODAY }).totalWeeks, 16);
   assert.equal(validPlan(plan), true);
 });
