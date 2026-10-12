@@ -16,7 +16,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise(r => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${server.address().port}/index.html`;
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ args: ["--no-sandbox"], executablePath: process.env.PW_CHROMIUM || undefined });
 const errors = [];
 let step = 0;
 const ok = label => console.log(`✓ ${++step}. ${label}`);
@@ -48,7 +48,7 @@ async function createPlan(page, { distance = "marathon", goal = "4:00", extra = 
 }
 
 // 1. tre distanze
-for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona"], ["half", "2:00", 12, "Mezza maratona"], ["10k", "55:00", 8, "10 km"]]) {
+for (const [distance, goal, weeks, label] of [["marathon", "4:00", 12, "Maratona"], ["half", "2:00", 8, "Mezza maratona"], ["10k", "55:00", 8, "10 km"]]) {
   const { ctx, page } = await newPage();
   await createPlan(page, { distance, goal });
   await page.click(".tab[data-tab=piano]");
@@ -80,12 +80,12 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   await page.click(".tab[data-tab=oggi]");
   const before = await page.locator("#view-oggi h3.session-title").innerText();
   const opts = await page.locator("#view-oggi select[data-move-from] option").allInnerTexts();
-  const target = opts.find(o => o.startsWith("GI"));
+  const target = opts.find(o => o.startsWith("VE") && !o.includes("scambia"));
   await page.selectOption("#view-oggi select[data-move-from]", { label: target });
   await page.waitForTimeout(200);
-  assert.ok((await page.locator("#view-oggi").innerText()).includes("Oggi si recupera")); ok(`seduta "${before}" spostata a giovedì`);
+  assert.ok((await page.locator("#view-oggi").innerText()).includes("Oggi si recupera")); ok(`seduta "${before}" spostata a venerdì`);
   await page.click(".tab[data-tab=piano]");
-  assert.ok((await page.locator("details.week.current .day", { hasText: "GI" }).first().innerText()).includes("Ripetute")); ok("spostamento visibile nel piano");
+  assert.ok((await page.locator("details.week.current .day", { hasText: /^VE/ }).first().innerText()).includes("Ripetute")); ok("spostamento visibile nel piano");
 
   // feedback nel giorno di riposo ora
   await page.click(".tab[data-tab=oggi]");
@@ -215,6 +215,39 @@ for (const [distance, goal, weeks, label] of [["marathon", "4:00", 16, "Maratona
   assert.equal(await page.locator("[name=maxHr]").inputValue(), "");
   await page.click(".tab[data-tab=oggi]");
   assert.ok((await page.locator("#view-oggi").innerText()).includes("Benvenuto")); ok("reset completo: tutto azzerato");
+  await ctx.close();
+}
+
+// 11. senza tempo obiettivo: il ritmo gara si stima dai dati (o dal livello)
+{
+  const { ctx, page } = await newPage();
+  await page.fill("[name=raceDate]", "2027-01-31");
+  await page.click("#profile-form button[type=submit]");
+  assert.ok((await page.locator("#profile-error").innerText()).includes("gara recente")); ok("nessun dato: chiede gara recente o livello");
+  await page.selectOption("[name=levelBand]", "unknown");
+  await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
+  await page.click(".tab[data-tab=piano]");
+  const txt = await page.locator("#view-piano").innerText();
+  assert.ok(txt.includes("da confermare") && txt.includes("Prima una mezza")); ok("«Non lo so»: piano provvisorio da confermare");
+  await ctx.close();
+}
+{
+  const { ctx, page } = await newPage();
+  await page.fill("[name=raceDate]", "2027-01-31");
+  await page.selectOption("[name=recentRaceDistance]", "21.0975"); await page.fill("[name=raceH]", "1"); await page.fill("[name=raceM]", "45");
+  await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
+  await page.click(".tab[data-tab=piano]");
+  assert.ok((await page.locator("#view-piano").innerText()).includes("3h 51'")); ok("solo una mezza in 1h45: maratona stimata 3h51' (× 2,2)");
+  await ctx.close();
+}
+{
+  const { ctx, page } = await newPage();
+  await page.selectOption("[name=distance]", "half"); await page.fill("[name=raceDate]", "2027-01-31");
+  assert.equal(await page.locator("[name=firstMarathon]").isVisible(), false);
+  await page.selectOption("[name=recentRaceDistance]", "10"); await page.fill("[name=raceM]", "45");
+  await page.click("#profile-form button[type=submit]"); await page.waitForSelector("#view-oggi:not([hidden])");
+  await page.click(".tab[data-tab=piano]");
+  assert.equal(await page.locator(".week").count(), 8); ok("mezza senza obiettivo, da una 10 km: piano di 8 settimane");
   await ctx.close();
 }
 

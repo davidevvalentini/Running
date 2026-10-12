@@ -3,6 +3,7 @@
 //  - tt5k:   5 km a ritmo massimo sostenibile     -> previsioni di gara
 import { equivalentSec, DISTANCES } from "./plan.js";
 import { fmtDuration, fmtGoal, fmtPace } from "./paces.js";
+import { estimateMarathon, estimateShort } from "./rg.js";
 
 export const TEST_DEFS = [
   {
@@ -31,12 +32,16 @@ const lastOf = (tests, id) => [...tests].filter(t => t.type === id).sort((a, b) 
 export const latestTest = lastOf;
 
 // Quanto l'obiettivo è realistico, dato il test sui 5 km.
-export function evaluateGoal({ goalSec, distance, tests }) {
+// Con i metodi "manuale" (maratona) e "mezza8" la stima segue le stesse regole usate per generare il piano
+// (10 km + 30″/km, +20″/km alla prima maratona; mezza = ritmo dei 5 km + 20″/km).
+export function evaluateGoal({ goalSec, distance, tests, method, firstMarathon = false }) {
   const t = lastOf(tests ?? [], "tt5k");
   if (!t || !t.durationSec) return null;
   const cfg = DISTANCES[distance] ?? DISTANCES.marathon;
   const key = cfg.key === "10k" ? "10k" : cfg.key;
-  const predicted = predictRaces(t.durationSec)[key];
+  const predicted = method === "manuale" && key === "marathon" ? estimateMarathon({ firstMarathon }, [t]).sec
+    : method === "mezza8" && key === "half" ? estimateShort("half", {}, [t]).sec
+    : predictRaces(t.durationSec)[key];
   const ratio = goalSec / predicted;
   const verdict = ratio >= 1.05 ? "comodo" : ratio >= 0.97 ? "realistico" : ratio >= 0.92 ? "ambizioso" : "fuori portata";
   const step = key === "10k" ? 10 : 60;
@@ -70,9 +75,9 @@ export function levelSummary({ goalEval, baseEval }) {
 }
 
 // Proposte che nascono dai test (mai automatiche).
-export function proposeFromTests({ plan, goalSec, distance, tests, paces, today, dismissed = [] }) {
+export function proposeFromTests({ plan, goalSec, distance, tests, paces, today, dismissed = [], firstMarathon = false }) {
   const out = [], adj = plan.adjustments ?? [];
-  const goal = evaluateGoal({ goalSec, distance, tests });
+  const goal = evaluateGoal({ goalSec, distance, tests, method: plan.method, firstMarathon });
   if (goal && goal.verdict !== "realistico") {
     const id = `goal:${tests.filter(x => x.type === "tt5k").at(-1)?.id ?? goal.testSec}`;
     const label = fmtGoalFor(distance, goal.realisticGoalSec);

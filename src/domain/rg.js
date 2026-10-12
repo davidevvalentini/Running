@@ -61,10 +61,13 @@ export function estimateWarnings(est) {
 export function estimateShort(key, profile, tests = []) {
   const target = key === "half" ? 21.0975 : 10, fatigue = key === "half" ? 1.02 : 1;
   const conv = (sec, km) => Math.round((sec * (target / km) ** RIEGEL * (km < target ? fatigue : 1)) / (key === "half" ? 30 : 10)) * (key === "half" ? 30 : 10);
+  // Mezza dal 5 km: regola del programma di riferimento, RG = ritmo dei 5 km + 20″/km.
+  const from5k = sec => (key === "half" ? Math.round(((sec / 5 + 20) * 21.0975) / 30) * 30 : conv(sec, 5));
   const d = profile.recentRaceDistanceKm, t = profile.recentRaceTimeSec;
+  if (d === 5 && t) return { sec: from5k(t), source: "5k", provisional: false, notes: [] };
   if (d && t) return { sec: conv(t, d), source: d === target ? "gara" : `${d === 21.0975 ? "mezza" : d + "k"}`, provisional: false, notes: [] };
   const t5 = [...tests].filter(x => x.type === "tt5k" && x.durationSec).sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (t5) return { sec: conv(t5.durationSec, 5), source: "test5k", provisional: false, notes: [] };
+  if (t5) return { sec: from5k(t5.durationSec), source: "test5k", provisional: false, notes: [] };
   const band = levelBand(profile.levelBand);
   if (band) return { sec: conv(band.tenKSec, 10), source: "livello", provisional: true, notes: [] };
   return null;

@@ -108,7 +108,7 @@ test("ultimo stimolo qualitativo: 5×2000 m a RG−10″ con 2' da fermo", () =>
   const q = plan.weeks[11].days[1].session;
   const r = q.steps.find(x => x.k === "reps");
   assert.deepEqual([r.n, r.workKm, r.workCode, r.recSec, r.recCode], [5, 2, "RG-10", 120, "FERMO"]);
-  assert.match(notation(q.steps), /5 x \(2 km RG-10 \+ 2'00" FERMO\)/);
+  assert.match(notation(q.steps), /5 x \(2 km RG-10 \+ 2'00" da fermo\)/);
 });
 
 test("recupero da fermo: nessun km, nessun ritmo", () => {
